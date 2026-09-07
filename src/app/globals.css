@@ -1,26 +1,188 @@
 @import "tailwindcss";
 
+/*
+  LAETO LTD design tokens — Tailwind v4 (no tailwind.config.js; tokens live in
+  @theme). Light-first, full dark mode. Status color is the backbone of this
+  UI: the same four-color scale drives report badges, the monitoring toggle
+  and the dashboard stat tiles.
+*/
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+
+  --surface: #ffffff;
+  --surface-muted: #f1f5f9;
+
+  --primary: #1e293b;
+  --primary-foreground: #f8fafc;
+
+  --accent: #16a34a;
+  --accent-foreground: #f0fdf4;
+
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+
+  --muted: #64748b;
+  --muted-foreground: #475569;
+
+  --destructive: #dc2626;
+  --destructive-foreground: #fef2f2;
+
+  --ring: #1e293b;
+
+  /* status scale, shared by badges, toggles, stat tiles */
+  --status-queued: #64748b;
+  --status-queued-bg: #f1f5f9;
+  --status-sent: #2563eb;
+  --status-sent-bg: #eff6ff;
+  --status-processing: #d97706;
+  --status-processing-bg: #fffbeb;
+  --status-completed: #16a34a;
+  --status-completed-bg: #f0fdf4;
+  --status-failed: #dc2626;
+  --status-failed-bg: #fef2f2;
+
+  --radius: 0.625rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0b1120;
+    --foreground: #f1f5f9;
+
+    --surface: #111827;
+    --surface-muted: #1a2333;
+
+    --primary: #e2e8f0;
+    --primary-foreground: #0f172a;
+
+    --accent: #22c55e;
+    --accent-foreground: #052e16;
+
+    --border: #263041;
+    --border-strong: #334155;
+
+    --muted: #94a3b8;
+    --muted-foreground: #cbd5e1;
+
+    --destructive: #f87171;
+    --destructive-foreground: #450a0a;
+
+    --ring: #e2e8f0;
+
+    --status-queued: #94a3b8;
+    --status-queued-bg: #1a2333;
+    --status-sent: #60a5fa;
+    --status-sent-bg: #132036;
+    --status-processing: #fbbf24;
+    --status-processing-bg: #2a1f0a;
+    --status-completed: #4ade80;
+    --status-completed-bg: #0d2818;
+    --status-failed: #f87171;
+    --status-failed-bg: #2a1212;
+  }
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-ring: var(--ring);
+
+  --color-status-queued: var(--status-queued);
+  --color-status-queued-bg: var(--status-queued-bg);
+  --color-status-sent: var(--status-sent);
+  --color-status-sent-bg: var(--status-sent-bg);
+  --color-status-processing: var(--status-processing);
+  --color-status-processing-bg: var(--status-processing-bg);
+  --color-status-completed: var(--status-completed);
+  --color-status-completed-bg: var(--status-completed-bg);
+  --color-status-failed: var(--status-failed);
+  --color-status-failed-bg: var(--status-failed-bg);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+/* Visible focus rings everywhere, no exceptions */
+:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Radix data-state driven animations for Dialog/DropdownMenu/Select content */
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
+@keyframes overlay-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes content-in {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes content-out {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  to { opacity: 0; transform: translate(-50%, -48%) scale(0.96); }
+}
+@keyframes popover-in {
+  from { opacity: 0; transform: scale(0.96) translateY(-2px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes popover-out {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 0; transform: scale(0.96) translateY(-2px); }
+}
+@keyframes sheet-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+@keyframes sheet-out-right {
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
+}
+
+.radix-overlay[data-state="open"] { animation: overlay-in 200ms ease-out; }
+.radix-overlay[data-state="closed"] { animation: overlay-out 150ms ease-in; }
+.radix-content[data-state="open"] { animation: content-in 200ms ease-out; }
+.radix-content[data-state="closed"] { animation: content-out 150ms ease-in; }
+.radix-popover[data-state="open"] { animation: popover-in 150ms ease-out; }
+.radix-popover[data-state="closed"] { animation: popover-out 100ms ease-in; }
+.radix-sheet[data-state="open"] { animation: sheet-in-right 220ms ease-out; }
+.radix-sheet[data-state="closed"] { animation: sheet-out-right 180ms ease-in; }
