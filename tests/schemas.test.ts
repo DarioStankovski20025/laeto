@@ -81,7 +81,12 @@ describe("emailSchema", () => {
 
 describe("productSchema", () => {
   it("accepts a minimal valid product", () => {
-    const result = productSchema.safeParse({ asin: "B00ABC1234", title: "Test Product", notifyEnabled: true });
+    const result = productSchema.safeParse({
+      asin: "B00ABC1234",
+      title: "Test Product",
+      amazonUrl: "https://www.amazon.co.uk/dp/B00ABC1234",
+      notifyEnabled: true,
+    });
     expect(result.success).toBe(true);
   });
 

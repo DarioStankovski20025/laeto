@@ -18,7 +18,8 @@ export const serverEnv = {
   supabaseUrl: () => required("NEXT_PUBLIC_SUPABASE_URL"),
   supabaseAnonKey: () => required("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
   supabaseServiceRoleKey: () => required("SUPABASE_SERVICE_ROLE_KEY"),
-  cronSecret: () => required("CRON_SECRET"),
+  /** Inbound — the external report service presents this to GET /api/reports/feed. */
+  reportsFeedSecret: () => required("REPORTS_FEED_SECRET"),
   scraperCallbackSecret: () => required("SCRAPER_CALLBACK_SECRET"),
 };
 

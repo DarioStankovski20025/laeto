@@ -80,6 +80,22 @@ export function ProductForm({ mode, product, existingImageUrl }: ProductFormProp
         <Input id="title" name="title" required defaultValue={product?.title} invalid={Boolean(fieldErrors?.title)} />
       </Field>
 
+      <Field
+        label="Amazon URL"
+        htmlFor="amazonUrl"
+        error={fieldErrors?.amazonUrl?.[0]}
+        hint="Full https://www.amazon.* product link."
+      >
+        <Input
+          id="amazonUrl"
+          name="amazonUrl"
+          type="url"
+          required
+          defaultValue={product?.amazon_url ?? ""}
+          invalid={Boolean(fieldErrors?.amazonUrl)}
+        />
+      </Field>
+
       <div className="flex items-center justify-between rounded-md border border-border p-3">
         <div>
           <p className="text-sm font-medium text-foreground">Notify me</p>

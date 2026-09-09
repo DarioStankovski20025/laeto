@@ -40,8 +40,8 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Machine endpoints authenticate themselves with a bearer secret and must
-  // never be redirected to /login — the cron and callback both depend on
-  // reaching their handler even with zero Supabase cookies present.
+  // never be redirected to /login — the feed and callback routes both
+  // depend on reaching their handler even with zero Supabase cookies present.
   if (pathname.startsWith("/api/")) {
     return NextResponse.next({ request });
   }

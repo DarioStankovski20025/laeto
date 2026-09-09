@@ -1,24 +1,21 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { dispatchScrapeJob } from "@/lib/scraper/client";
-import type { ScraperJobPayload } from "@/lib/scraper/types";
+import type { ScraperFeedItem } from "@/lib/scraper/types";
 
-const payload: ScraperJobPayload = {
-  schemaVersion: 1,
-  reportRunId: "run-1",
-  triggerType: "manual",
-  requestedAt: "2026-01-01T00:00:00Z",
-  callbackUrl: "https://app.example.com/api/reports/callback",
-  reportSettings: { recipientEmail: "reports@laeto.example", timezone: "UTC" },
-  products: [],
+const item: ScraperFeedItem = {
+  our_product: "https://www.amazon.co.uk/dp/B00ABC1234",
+  competitors: ["https://www.amazon.co.uk/dp/B00XYZ9999"],
+  email: "reports@laeto.example",
 };
 
+const RUN_ID = "run-1";
 const ORIGINAL_ENV = { ...process.env };
 
 beforeEach(() => {
   process.env = { ...ORIGINAL_ENV };
   delete process.env.SCRAPER_MOCK_MODE;
-  delete process.env.SCRAPER_API_URL;
-  delete process.env.SCRAPER_API_SECRET;
+  delete process.env.MANUAL_CHECK_URL;
+  delete process.env.MANUAL_CHECK_SECRET;
   vi.stubEnv("NODE_ENV", "test");
 });
 
@@ -35,7 +32,7 @@ describe("dispatchScrapeJob", () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
 
-    const result = await dispatchScrapeJob(payload);
+    const result = await dispatchScrapeJob(item, RUN_ID);
 
     expect(result.ok).toBe(true);
     expect(result.mocked).toBe(true);
@@ -43,21 +40,21 @@ describe("dispatchScrapeJob", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("returns a not_configured error when SCRAPER_API_URL/SECRET are missing", async () => {
-    const result = await dispatchScrapeJob(payload);
+  it("returns a not_configured error when MANUAL_CHECK_URL/SECRET are missing", async () => {
+    const result = await dispatchScrapeJob(item, RUN_ID);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("not_configured");
   });
 
-  it("returns a rejected error when the scraper responds with a non-2xx status", async () => {
-    process.env.SCRAPER_API_URL = "https://scraper.example.com/jobs";
-    process.env.SCRAPER_API_SECRET = "secret";
+  it("returns a rejected error when the report service responds with a non-2xx status", async () => {
+    process.env.MANUAL_CHECK_URL = "https://reports.example.com/manual-check";
+    process.env.MANUAL_CHECK_SECRET = "secret";
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(new Response("Internal error", { status: 500 })),
     );
 
-    const result = await dispatchScrapeJob(payload);
+    const result = await dispatchScrapeJob(item, RUN_ID);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe("rejected");
@@ -65,64 +62,68 @@ describe("dispatchScrapeJob", () => {
     }
   });
 
-  it("returns a bad_response error when the scraper returns invalid JSON", async () => {
-    process.env.SCRAPER_API_URL = "https://scraper.example.com/jobs";
-    process.env.SCRAPER_API_SECRET = "secret";
+  it("returns a bad_response error when the report service returns invalid JSON", async () => {
+    process.env.MANUAL_CHECK_URL = "https://reports.example.com/manual-check";
+    process.env.MANUAL_CHECK_SECRET = "secret";
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("not json", { status: 200 })));
 
-    const result = await dispatchScrapeJob(payload);
+    const result = await dispatchScrapeJob(item, RUN_ID);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("bad_response");
   });
 
   it("returns a bad_response error when the ack fails schema validation", async () => {
-    process.env.SCRAPER_API_URL = "https://scraper.example.com/jobs";
-    process.env.SCRAPER_API_SECRET = "secret";
+    process.env.MANUAL_CHECK_URL = "https://reports.example.com/manual-check";
+    process.env.MANUAL_CHECK_SECRET = "secret";
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(new Response(JSON.stringify({ accepted: true }), { status: 200 })),
     );
 
-    const result = await dispatchScrapeJob(payload);
+    const result = await dispatchScrapeJob(item, RUN_ID);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("bad_response");
   });
 
   it("classifies a fetch timeout (DOMException 'TimeoutError') as a timeout, not a generic network error", async () => {
-    process.env.SCRAPER_API_URL = "https://scraper.example.com/jobs";
-    process.env.SCRAPER_API_SECRET = "secret";
+    process.env.MANUAL_CHECK_URL = "https://reports.example.com/manual-check";
+    process.env.MANUAL_CHECK_SECRET = "secret";
     vi.stubGlobal(
       "fetch",
       vi.fn().mockRejectedValue(new DOMException("The operation timed out.", "TimeoutError")),
     );
 
-    const result = await dispatchScrapeJob(payload);
+    const result = await dispatchScrapeJob(item, RUN_ID);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("timeout");
   });
 
   it("classifies a generic network failure as 'network'", async () => {
-    process.env.SCRAPER_API_URL = "https://scraper.example.com/jobs";
-    process.env.SCRAPER_API_SECRET = "secret";
+    process.env.MANUAL_CHECK_URL = "https://reports.example.com/manual-check";
+    process.env.MANUAL_CHECK_SECRET = "secret";
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
 
-    const result = await dispatchScrapeJob(payload);
+    const result = await dispatchScrapeJob(item, RUN_ID);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("network");
   });
 
-  it("returns a valid ack on a well-formed 2xx JSON response", async () => {
-    process.env.SCRAPER_API_URL = "https://scraper.example.com/jobs";
-    process.env.SCRAPER_API_SECRET = "secret";
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ accepted: true, jobId: "job_abc" }), { status: 200 }),
-      ),
+  it("returns a valid ack on a well-formed 2xx JSON response, sending the run id as a header", async () => {
+    process.env.MANUAL_CHECK_URL = "https://reports.example.com/manual-check";
+    process.env.MANUAL_CHECK_SECRET = "secret";
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ accepted: true, jobId: "job_abc" }), { status: 200 }),
     );
+    vi.stubGlobal("fetch", fetchSpy);
 
-    const result = await dispatchScrapeJob(payload);
+    const result = await dispatchScrapeJob(item, RUN_ID);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.ack.jobId).toBe("job_abc");
+
+    const [, init] = fetchSpy.mock.calls[0];
+    const headers = init.headers as Record<string, string>;
+    expect(headers["X-Report-Run-Id"]).toBe(RUN_ID);
+    expect(headers["Authorization"]).toBe("Bearer secret");
+    expect(JSON.parse(init.body as string)).toEqual(item);
   });
 });

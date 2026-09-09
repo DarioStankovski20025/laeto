@@ -53,7 +53,10 @@ export function SettingsForm({ settings }: { settings: ReportSettings }) {
           <div className="flex items-center justify-between rounded-md border border-border p-3">
             <div>
               <p className="text-sm font-medium text-foreground">Daily reports</p>
-              <p className="text-xs text-muted-foreground">Automatically check all monitored products every day.</p>
+              <p className="text-xs text-muted-foreground">
+                Whether the report service should treat the feed as in service. Reports go out whenever the
+                report service requests the feed — this app has no schedule of its own.
+              </p>
             </div>
             <Switch checked={dailyReportsEnabled} onCheckedChange={setDailyReportsEnabled} aria-label="Toggle daily reports" />
           </div>

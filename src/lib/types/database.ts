@@ -10,7 +10,7 @@
  * an access-control boundary — RLS grants access to any authenticated user.
  */
 
-export type TriggerType = "daily" | "manual";
+export type TriggerType = "feed" | "manual";
 export type ReportRunStatus = "queued" | "sent" | "processing" | "completed" | "failed";
 
 export interface Database {
@@ -57,6 +57,7 @@ export interface Database {
           id: string;
           asin: string;
           title: string;
+          amazon_url: string | null;
           image_path: string | null;
           notify_enabled: boolean;
           last_checked_at: string | null;
@@ -138,7 +139,6 @@ export interface Database {
           trigger_type: TriggerType;
           status: ReportRunStatus;
           status_rank: number;
-          run_date: string | null;
           external_job_id: string | null;
           products_count: number;
           competitors_count: number;
@@ -204,10 +204,6 @@ export interface Database {
           p_result_data?: Record<string, unknown> | null;
         };
         Returns: { applied: boolean; previous_status: string; current_status: string }[];
-      };
-      select_daily_report_candidates: {
-        Args: { p_mode?: string };
-        Returns: { report_email: string; company_name: string | null; timezone: string }[];
       };
       expire_stale_report_runs: {
         Args: { p_max_age?: string };

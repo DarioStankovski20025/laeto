@@ -4,7 +4,7 @@ import type { Database } from "@/lib/types/database";
 import * as productsData from "@/lib/data/products";
 import * as reportRunsData from "@/lib/data/report-runs";
 import * as reportSettingsData from "@/lib/data/report-settings";
-import { buildScraperPayload, computeTotals, dispatchScrapeJob } from "@/lib/scraper";
+import { buildManualCheckPayload, dispatchScrapeJob } from "@/lib/scraper";
 import { fail, ok, type ActionResult } from "@/lib/utils/result";
 import type { ReportRun } from "@/lib/data/report-runs";
 
@@ -39,32 +39,28 @@ export async function performManualCheck(
     return fail("validation", "Add at least one competitor before checking this product's price.");
   }
 
+  const settings = await reportSettingsData.getReportSettings(userClient);
+  const payload = buildManualCheckPayload(product, settings?.report_email ?? user.email ?? "");
+  if (!payload) {
+    return fail("validation", "Add an Amazon URL to this product before checking its price.");
+  }
+
   const inserted = await reportRunsData.insertManualRun(userClient, productId);
   if (inserted === "conflict") {
     return fail("conflict", "A check is already running for this product.");
   }
 
-  const settings = await reportSettingsData.getReportSettings(userClient);
-  const requestedAt = new Date().toISOString();
-
-  const payload = await buildScraperPayload(userClient, {
-    reportRunId: inserted.id,
-    triggerType: "manual",
-    requestedAt,
-    recipientEmail: settings?.report_email ?? user.email ?? "",
-    timezone: settings?.timezone ?? "UTC",
-    products: [product],
-  });
-
-  const dispatch = await dispatchScrapeJob(payload);
+  const dispatch = await dispatchScrapeJob(payload, inserted.id);
 
   if (!dispatch.ok) {
     await reportRunsData.markRunFailed(adminClient, inserted.id, dispatch.error.toUserMessage());
     return fail("scraper", dispatch.error.toUserMessage());
   }
 
-  const totals = computeTotals([product]);
-  await reportRunsData.markRunDispatched(adminClient, inserted.id, dispatch.ack, totals);
+  await reportRunsData.markRunDispatched(adminClient, inserted.id, dispatch.ack, {
+    productsCount: 1,
+    competitorsCount: product.competitors.length,
+  });
 
   return ok({
     runId: inserted.id,

@@ -1,6 +1,7 @@
 import "server-only";
 import type { ScraperAck } from "@/lib/validation/schemas";
-import type { ScraperJobPayload } from "./types";
+import type { ScraperFeedItem } from "./types";
+import { getSiteUrl } from "@/lib/utils/env";
 
 /**
  * The ONLY place SCRAPER_MOCK_MODE is read in the entire codebase. Refuses
@@ -15,17 +16,13 @@ export function isMockMode(): boolean {
   return true;
 }
 
-function competitorCount(payload: ScraperJobPayload): number {
-  return payload.products.reduce((n, p) => n + p.competitors.length, 0);
-}
-
-export async function mockDispatch(payload: ScraperJobPayload): Promise<ScraperAck> {
+export async function mockDispatch(item: ScraperFeedItem): Promise<ScraperAck> {
   await new Promise((resolve) => setTimeout(resolve, 150 + Math.random() * 250));
   return {
     accepted: true,
     jobId: `mock_${crypto.randomUUID()}`,
     queuedAt: new Date().toISOString(),
-    estimatedSeconds: 20 + competitorCount(payload) * 3,
+    estimatedSeconds: 20 + item.competitors.length * 3,
     message: "MOCK MODE — no scraping was performed.",
   };
 }
@@ -36,17 +33,18 @@ export async function mockDispatch(payload: ScraperJobPayload): Promise<ScraperA
  * SCRAPER_CALLBACK_SECRET, so the polling UI and the callback route's auth
  * path are both genuinely exercised in local development.
  */
-export function scheduleMockCallback(payload: ScraperJobPayload, jobId: string): void {
+export function scheduleMockCallback(runId: string): void {
   const callbackSecret = process.env.SCRAPER_CALLBACK_SECRET;
   if (!callbackSecret) return; // nothing to authenticate the mock callback with
 
+  const callbackUrl = new URL("/api/reports/callback", getSiteUrl()).toString();
+
   setTimeout(() => {
-    void fetch(payload.callbackUrl, {
+    void fetch(callbackUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${callbackSecret}` },
       body: JSON.stringify({
-        reportRunId: payload.reportRunId,
-        externalJobId: jobId,
+        reportRunId: runId,
         status: "processing",
         startedAt: new Date().toISOString(),
       }),
@@ -56,23 +54,15 @@ export function scheduleMockCallback(payload: ScraperJobPayload, jobId: string):
   }, 2000);
 
   setTimeout(() => {
-    void fetch(payload.callbackUrl, {
+    void fetch(callbackUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${callbackSecret}` },
       body: JSON.stringify({
-        reportRunId: payload.reportRunId,
-        externalJobId: jobId,
+        reportRunId: runId,
         status: "completed",
         completedAt: new Date().toISOString(),
         reportFileUrl: "https://example.invalid/mock-report.xlsx",
-        resultData: {
-          mock: true,
-          productsProcessed: payload.products.length,
-          competitorsProcessed: competitorCount(payload),
-          failedCompetitors: 0,
-          emailSent: true,
-          emailSentAt: new Date().toISOString(),
-        },
+        resultData: { mock: true, emailSent: true, emailSentAt: new Date().toISOString() },
       }),
     }).catch(() => {
       /* best-effort local dev convenience only */

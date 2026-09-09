@@ -68,6 +68,7 @@ export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export const productSchema = z.object({
   asin: asinSchema,
   title: z.string().trim().min(1, { error: "Product title is required." }).max(300),
+  amazonUrl: amazonUrlSchema,
   notifyEnabled: z.boolean(),
   imagePath: z.string().trim().min(1).nullable().optional(),
 });

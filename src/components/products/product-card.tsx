@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ImageOff, Pencil, User, Users } from "lucide-react";
+import { ExternalLink, ImageOff, Pencil, User, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -61,6 +61,18 @@ export function ProductCard({ product, imageUrl, lastRunStatus }: ProductCardPro
         <div>
           <h3 className="line-clamp-2 text-sm font-semibold text-foreground">{product.title}</h3>
           <p className="mt-0.5 font-mono text-xs text-muted-foreground">{product.asin}</p>
+          {product.amazon_url ? (
+            <a
+              href={product.amazon_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              View on Amazon <ExternalLink className="h-3 w-3" />
+            </a>
+          ) : (
+            <p className="mt-0.5 text-xs text-status-processing">No Amazon URL set</p>
+          )}
           {product.created_by_profile && (
             <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground" title="Added by">
               <User className="h-3 w-3" /> {product.created_by_profile.full_name ?? product.created_by_profile.email}

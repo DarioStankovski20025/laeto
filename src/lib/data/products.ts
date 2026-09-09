@@ -25,7 +25,7 @@ export interface ProductWithCompetitors extends Product {
 /**
  * Every function below is client-agnostic: it takes the Supabase client as
  * its first argument. The dashboard passes a cookie-authenticated user
- * client; the cron and scraper-payload builder pass the service-role
+ * client; the feed route (GET /api/reports/feed) passes the service-role
  * client. This is the shared LAETO catalog — RLS grants any authenticated
  * user full access, so no per-user filtering happens here. created_by is
  * stamped server-side by a database trigger, never supplied by the caller.
@@ -59,9 +59,17 @@ export async function getProduct(db: DB, id: string): Promise<ProductWithCompeti
   return data as ProductWithCompetitors | null;
 }
 
-/** Products eligible for the daily scrape: notify_enabled with >=1 competitor. */
+/**
+ * Products eligible for the feed / a manual check: notify_enabled, has an
+ * Amazon URL of its own (required for the link-only payload), and has at
+ * least one competitor.
+ */
 export async function listNotifiableProductsWithCompetitors(db: DB): Promise<ProductWithCompetitors[]> {
-  const { data, error } = await db.from("products").select("*, competitors(*)").eq("notify_enabled", true);
+  const { data, error } = await db
+    .from("products")
+    .select("*, competitors(*)")
+    .eq("notify_enabled", true)
+    .not("amazon_url", "is", null);
   if (error) throw error;
   return ((data ?? []) as ProductWithCompetitors[]).filter((p) => p.competitors.length > 0);
 }
@@ -73,6 +81,7 @@ export async function insertProduct(db: DB, input: ProductInput, id?: string): P
       ...(id ? { id } : {}),
       asin: input.asin,
       title: input.title,
+      amazon_url: input.amazonUrl,
       notify_enabled: input.notifyEnabled,
       image_path: input.imagePath ?? null,
     })
@@ -88,6 +97,7 @@ export async function updateProduct(db: DB, id: string, input: ProductInput): Pr
     .update({
       asin: input.asin,
       title: input.title,
+      amazon_url: input.amazonUrl,
       notify_enabled: input.notifyEnabled,
     })
     .eq("id", id)

@@ -1,11 +1,11 @@
 import "server-only";
-import type { ScraperJobPayload } from "./types";
+import type { ScraperFeedItem } from "./types";
 import type { ScraperError } from "./errors";
 
 const SECRET_ENV_KEYS = [
-  "SCRAPER_API_SECRET",
+  "MANUAL_CHECK_SECRET",
   "SCRAPER_CALLBACK_SECRET",
-  "CRON_SECRET",
+  "REPORTS_FEED_SECRET",
   "SUPABASE_SERVICE_ROLE_KEY",
 ] as const;
 
@@ -25,24 +25,21 @@ interface ScraperLogEvent {
   phase: "config" | "dispatch";
   outcome: "ok" | "error";
   mocked: boolean;
-  payload: ScraperJobPayload;
+  item: ScraperFeedItem;
   durationMs: number;
   jobId?: string;
   error?: ScraperError;
 }
 
-/** One redacted JSON line per dispatch attempt. Never logs image URLs, the
- * recipient email unmasked, or any Authorization header. */
+/** One redacted JSON line per dispatch attempt. Never logs the recipient
+ * email unmasked or any Authorization header. */
 export function logScraperEvent(event: ScraperLogEvent): void {
   const line = {
     at: new Date().toISOString(),
     phase: event.phase,
     outcome: event.outcome,
     mocked: event.mocked,
-    reportRunId: event.payload.reportRunId,
-    triggerType: event.payload.triggerType,
-    productsCount: event.payload.products.length,
-    competitorsCount: event.payload.products.reduce((n, p) => n + p.competitors.length, 0),
+    competitorsCount: event.item.competitors.length,
     durationMs: event.durationMs,
     jobId: event.jobId,
     errorCode: event.error?.code,

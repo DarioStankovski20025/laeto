@@ -7,7 +7,7 @@ import { serverEnv } from "@/lib/utils/env";
  * Service-role Supabase client. BYPASSES ROW LEVEL SECURITY ENTIRELY.
  *
  * Import this ONLY from:
- *   - src/app/api/cron/daily-report/route.ts
+ *   - src/app/api/reports/feed/route.ts
  *   - src/app/api/reports/callback/route.ts
  *   - src/lib/data/* functions explicitly called by the above
  *

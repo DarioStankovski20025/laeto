@@ -46,7 +46,7 @@ export function LogsDrawer({ children }: { children: React.ReactNode }) {
           <SheetTitle className="flex items-center gap-2">
             <ClipboardList className="h-4 w-4" /> Report activity
           </SheetTitle>
-          <SheetDescription>Recent daily and manual report runs.</SheetDescription>
+          <SheetDescription>Recent feed and manual report runs.</SheetDescription>
         </SheetHeader>
 
         <div className="mb-3 flex justify-end">

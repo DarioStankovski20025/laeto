@@ -1,33 +1,12 @@
-export const SCRAPER_SCHEMA_VERSION = 1 as const;
-
-export type ScraperTriggerType = "daily" | "manual";
-
-export interface ScraperCompetitorPayload {
-  id: string;
-  asin: string;
-  title: string;
-  amazonUrl: string;
-}
-
-export interface ScraperProductPayload {
-  id: string;
-  asin: string;
-  title: string;
-  imageUrl: string | null;
-  competitors: ScraperCompetitorPayload[];
-}
-
-export interface ScraperReportSettings {
-  recipientEmail: string;
-  timezone: string;
-}
-
-export interface ScraperJobPayload {
-  schemaVersion: typeof SCRAPER_SCHEMA_VERSION;
-  reportRunId: string;
-  triggerType: ScraperTriggerType;
-  requestedAt: string;
-  callbackUrl: string;
-  reportSettings: ScraperReportSettings;
-  products: ScraperProductPayload[];
+/**
+ * Link-only payload sent for a manual, single-product "Check now" — the
+ * external report service gets exactly the Amazon links and a recipient
+ * email, nothing else. (The daily/full-catalog case is no longer pushed at
+ * all; the report service pulls it from GET /api/reports/feed instead,
+ * using the same shape, one array entry per product.)
+ */
+export interface ScraperFeedItem {
+  our_product: string;
+  competitors: string[];
+  email: string;
 }

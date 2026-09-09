@@ -6,7 +6,6 @@ type DB = SupabaseClient<Database>;
 
 const PRODUCT_IMAGES_BUCKET = "product-images";
 export const SIGNED_URL_TTL_SECONDS = 3600;
-export const SCRAPER_SIGNED_URL_TTL_SECONDS = 86400;
 
 /**
  * Batch-signs a set of product-image paths in a single Storage call, keyed

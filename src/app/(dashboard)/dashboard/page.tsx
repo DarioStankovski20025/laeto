@@ -30,7 +30,7 @@ export default async function DashboardPage() {
   const monitoredCount = products.filter((p) => p.notify_enabled).length;
 
   // Most recent run touching each product: either a manual run for that
-  // specific product, or any daily run (which covers every monitored
+  // specific product, or any feed run (which covers every monitored
   // product) — whichever happened more recently. recentRuns is already
   // ordered newest-first, so the first match per product wins.
   const lastRunStatusByProduct: Record<string, (typeof recentRuns)[number]["status"]> = {};

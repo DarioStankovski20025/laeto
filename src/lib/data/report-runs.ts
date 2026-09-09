@@ -35,22 +35,19 @@ export async function insertManualRun(db: DB, productId: string): Promise<{ id: 
 }
 
 /**
- * Inserts a queued daily run using the SERVICE-ROLE client (the cron has no
- * user session — requested_by is left null, meaning "no human requester").
- * Returns 'duplicate' when report_runs_one_daily_per_day already holds
- * today's slot for the team.
+ * Inserts a run for a GET /api/reports/feed request, using the SERVICE-ROLE
+ * client (there is no cron and no end-user session behind this call —
+ * requested_by is left null, meaning "no human requester", it was the
+ * external report service pulling the feed).
  */
-export async function insertDailyRun(admin: DB): Promise<{ id: string } | "duplicate"> {
+export async function insertFeedRun(admin: DB): Promise<{ id: string }> {
   const { data, error } = await admin
     .from("report_runs")
-    .insert({ trigger_type: "daily", status: "queued" })
+    .insert({ trigger_type: "feed", status: "sent", sent_at: new Date().toISOString() })
     .select("id")
     .single();
 
-  if (error) {
-    if (isUniqueViolation(error)) return "duplicate";
-    throw error;
-  }
+  if (error) throw error;
   return data;
 }
 
@@ -143,6 +140,19 @@ export async function markRunDispatched(
   if (error) throw error;
 }
 
+/** Sets products/competitors counts without changing status — used by the feed route, which sets status='sent' at insert time. */
+export async function setRunCounts(
+  admin: DB,
+  runId: string,
+  totals: { productsCount: number; competitorsCount: number },
+): Promise<void> {
+  const { error } = await admin
+    .from("report_runs")
+    .update({ products_count: totals.productsCount, competitors_count: totals.competitorsCount })
+    .eq("id", runId);
+  if (error) throw error;
+}
+
 export async function markRunFailed(admin: DB, runId: string, message: string): Promise<void> {
   const { error } = await admin.rpc("apply_report_run_callback", {
     p_run_id: runId,
@@ -153,13 +163,13 @@ export async function markRunFailed(admin: DB, runId: string, message: string): 
   if (error) throw error;
 }
 
-/** Marks a run completed with zero products, so an empty daily send does not retry every hour. */
-export async function markRunSkippedNoProducts(admin: DB, runId: string): Promise<void> {
+/** Marks a run completed with nothing sent (e.g. no eligible products, or reports disabled in Settings). */
+export async function markRunSkipped(admin: DB, runId: string, reason: string): Promise<void> {
   const { error } = await admin.rpc("apply_report_run_callback", {
     p_run_id: runId,
     p_external_job_id: null,
     p_status: "completed",
-    p_result_data: { skipped: "no_eligible_products" },
+    p_result_data: { skipped: reason },
   });
   if (error) throw error;
 }
