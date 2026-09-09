@@ -16,6 +16,7 @@ function parseProductForm(formData: FormData) {
   return productSchema.safeParse({
     asin: formData.get("asin"),
     title: formData.get("title"),
+    amazonUrl: formData.get("amazonUrl"),
     notifyEnabled: formData.get("notifyEnabled") === "true",
     imagePath: formData.get("imagePath") || null,
   });
