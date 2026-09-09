@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { requireUser } from "@/lib/auth/require-user";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminSupabase } from "@/lib/supabase/admin";
-import { z } from "zod";
 import { productSchema } from "@/lib/validation/schemas";
 import { ok, fail, type ActionResult } from "@/lib/utils/result";
 import { handleDataError } from "@/lib/utils/pg-error";
@@ -21,27 +21,33 @@ function parseProductForm(formData: FormData) {
   });
 }
 
+/** Image paths follow the {productId}/{filename} convention (shared bucket, no per-user prefix). */
+function isValidImagePath(imagePath: string, productId: string): boolean {
+  return imagePath.startsWith(`${productId}/`) && !imagePath.slice(productId.length + 1).includes("/");
+}
+
 export async function createProductAction(_prev: unknown, formData: FormData): Promise<ActionResult<Product>> {
-  const user = await requireUser();
+  await requireUser();
   const parsed = parseProductForm(formData);
   if (!parsed.success) {
     return fail("validation", "Check the highlighted fields.", parsed.error.flatten().fieldErrors);
-  }
-
-  // The image, if any, was uploaded browser-direct to Storage (Server Action
-  // bodies are capped at 1MB by default — far too small for a product
-  // photo). We only re-validate that the claimed path belongs to this user.
-  if (parsed.data.imagePath && !parsed.data.imagePath.startsWith(`${user.id}/`)) {
-    return fail("validation", "Invalid image path.");
   }
 
   const idField = formData.get("id");
   const idParsed = typeof idField === "string" ? z.uuid().safeParse(idField) : undefined;
   const explicitId = idParsed?.success ? idParsed.data : undefined;
 
+  // The image, if any, was uploaded browser-direct to Storage (Server Action
+  // bodies are capped at 1MB by default — far too small for a product
+  // photo). We only re-validate that the claimed path matches this product's
+  // pre-generated id.
+  if (parsed.data.imagePath && (!explicitId || !isValidImagePath(parsed.data.imagePath, explicitId))) {
+    return fail("validation", "Invalid image path.");
+  }
+
   const supabase = await createServerSupabase();
   try {
-    const product = await productsData.insertProduct(supabase, user.id, parsed.data, explicitId);
+    const product = await productsData.insertProduct(supabase, parsed.data, explicitId);
     revalidatePath("/dashboard");
     return ok(product);
   } catch (error) {
@@ -61,7 +67,7 @@ export async function updateProductAction(
   _prev: unknown,
   formData: FormData,
 ): Promise<ActionResult<Product>> {
-  const user = await requireUser();
+  await requireUser();
   const parsed = parseProductForm(formData);
   if (!parsed.success) {
     return fail("validation", "Check the highlighted fields.", parsed.error.flatten().fieldErrors);
@@ -69,12 +75,12 @@ export async function updateProductAction(
 
   const supabase = await createServerSupabase();
   try {
-    const product = await productsData.updateProduct(supabase, user.id, productId, parsed.data);
+    const product = await productsData.updateProduct(supabase, productId, parsed.data);
 
     // Image replacement, if a new path was uploaded: swap atomically
     // (upload already happened client-side) then delete the old object.
     if (parsed.data.imagePath !== undefined) {
-      if (parsed.data.imagePath && !parsed.data.imagePath.startsWith(`${user.id}/`)) {
+      if (parsed.data.imagePath && !isValidImagePath(parsed.data.imagePath, productId)) {
         return fail("validation", "Invalid image path.");
       }
       const previousPath = await productsData.setProductImage(supabase, productId, parsed.data.imagePath);
@@ -92,10 +98,10 @@ export async function updateProductAction(
 }
 
 export async function removeProductImageAction(productId: string): Promise<ActionResult<null>> {
-  const user = await requireUser();
+  await requireUser();
   const supabase = await createServerSupabase();
   try {
-    const product = await productsData.getProduct(supabase, user.id, productId);
+    const product = await productsData.getProduct(supabase, productId);
     if (!product) return fail("not_found", "Product not found.");
 
     const previousPath = await productsData.setProductImage(supabase, productId, null);
@@ -110,10 +116,10 @@ export async function removeProductImageAction(productId: string): Promise<Actio
 }
 
 export async function setProductNotifyAction(productId: string, notifyEnabled: boolean): Promise<ActionResult<Product>> {
-  const user = await requireUser();
+  await requireUser();
   const supabase = await createServerSupabase();
   try {
-    const product = await productsData.setProductNotify(supabase, user.id, productId, notifyEnabled);
+    const product = await productsData.setProductNotify(supabase, productId, notifyEnabled);
     revalidatePath("/dashboard");
     return ok(product);
   } catch (error) {
@@ -122,10 +128,10 @@ export async function setProductNotifyAction(productId: string, notifyEnabled: b
 }
 
 export async function deleteProductAction(productId: string): Promise<ActionResult<null>> {
-  const user = await requireUser();
+  await requireUser();
   const supabase = await createServerSupabase();
   try {
-    const deleted = await productsData.deleteProduct(supabase, user.id, productId);
+    const deleted = await productsData.deleteProduct(supabase, productId);
     if (!deleted) return fail("not_found", "Product not found.");
 
     // The DB cascade removes competitors and report_runs rows; the storage

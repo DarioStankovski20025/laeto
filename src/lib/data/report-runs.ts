@@ -2,6 +2,7 @@ import "server-only";
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import type { Database, ReportRunStatus } from "@/lib/types/database";
 import type { ScraperAck } from "@/lib/validation/schemas";
+import type { Attribution } from "@/lib/data/products";
 
 type DB = SupabaseClient<Database>;
 export type ReportRun = Database["public"]["Tables"]["report_runs"]["Row"];
@@ -13,25 +14,16 @@ function isUniqueViolation(error: PostgrestError): boolean {
 }
 
 /**
- * Inserts a queued manual run for one product, using the CALLER'S (RLS
- * -enforced) client — ownership of the product is verified by the
- * report_runs_insert_manual policy, not re-checked in application code.
- * Returns 'conflict' when report_runs_one_active_manual_per_product already
- * has an active run for this product (a double-clicked "Check now").
+ * Inserts a queued manual run for one product, using the CALLER'S
+ * (RLS-enforced) client. requested_by is stamped server-side from
+ * auth.uid() by a trigger, never supplied by the caller. Returns
+ * 'conflict' when report_runs_one_active_manual_per_product already has an
+ * active run for this product (a double-clicked "Check now").
  */
-export async function insertManualRun(
-  db: DB,
-  userId: string,
-  productId: string,
-): Promise<{ id: string } | "conflict"> {
+export async function insertManualRun(db: DB, productId: string): Promise<{ id: string } | "conflict"> {
   const { data, error } = await db
     .from("report_runs")
-    .insert({
-      user_id: userId,
-      product_id: productId,
-      trigger_type: "manual",
-      status: "queued",
-    })
+    .insert({ product_id: productId, trigger_type: "manual", status: "queued" })
     .select("id")
     .single();
 
@@ -44,17 +36,14 @@ export async function insertManualRun(
 
 /**
  * Inserts a queued daily run using the SERVICE-ROLE client (the cron has no
- * user session). Returns 'duplicate' when
- * report_runs_one_daily_per_user_per_day already holds today's slot.
+ * user session — requested_by is left null, meaning "no human requester").
+ * Returns 'duplicate' when report_runs_one_daily_per_day already holds
+ * today's slot for the team.
  */
-export async function insertDailyRun(admin: DB, userId: string): Promise<{ id: string } | "duplicate"> {
+export async function insertDailyRun(admin: DB): Promise<{ id: string } | "duplicate"> {
   const { data, error } = await admin
     .from("report_runs")
-    .insert({
-      user_id: userId,
-      trigger_type: "daily",
-      status: "queued",
-    })
+    .insert({ trigger_type: "daily", status: "queued" })
     .select("id")
     .single();
 
@@ -70,21 +59,19 @@ export interface RunListOptions {
   productId?: string;
 }
 
-export interface ReportRunWithProductTitle extends ReportRun {
+export interface ReportRunWithAttribution extends ReportRun {
   product_title: string | null;
+  requested_by_profile: Attribution | null;
 }
 
-export async function listRuns(
-  db: DB,
-  userId: string,
-  opts: RunListOptions = {},
-): Promise<ReportRunWithProductTitle[]> {
+const REQUESTED_BY_SELECT = "requested_by_profile:profiles!report_runs_requested_by_fkey(id, email, full_name)";
+
+export async function listRuns(db: DB, opts: RunListOptions = {}): Promise<ReportRunWithAttribution[]> {
   let query = db
     .from("report_runs")
-    .select("*, products(title)")
-    .eq("user_id", userId)
+    .select(`*, products(title), ${REQUESTED_BY_SELECT}`)
     .order("requested_at", { ascending: false })
-    .limit(opts.limit ?? 50);
+    .limit(opts.limit ?? 25);
 
   if (opts.productId) query = query.eq("product_id", opts.productId);
 
@@ -92,23 +79,25 @@ export async function listRuns(
   if (error) throw error;
 
   return (data ?? []).map((row) => {
-    const { products, ...run } = row as ReportRun & { products: { title: string } | null };
+    const { products, ...run } = row as ReportRun & {
+      products: { title: string } | null;
+      requested_by_profile: Attribution | null;
+    };
     return { ...run, product_title: products?.title ?? null };
   });
 }
 
-export async function getRunStatuses(db: DB, userId: string, ids: string[]): Promise<ReportRun[]> {
+export async function getRunStatuses(db: DB, ids: string[]): Promise<ReportRun[]> {
   if (ids.length === 0) return [];
-  const { data, error } = await db.from("report_runs").select("*").eq("user_id", userId).in("id", ids);
+  const { data, error } = await db.from("report_runs").select("*").in("id", ids);
   if (error) throw error;
   return data ?? [];
 }
 
-export async function getLatestCompletedRun(db: DB, userId: string): Promise<ReportRun | null> {
+export async function getLatestCompletedRun(db: DB): Promise<ReportRun | null> {
   const { data, error } = await db
     .from("report_runs")
     .select("*")
-    .eq("user_id", userId)
     .eq("status", "completed")
     .order("completed_at", { ascending: false })
     .limit(1)
@@ -117,11 +106,10 @@ export async function getLatestCompletedRun(db: DB, userId: string): Promise<Rep
   return data;
 }
 
-export async function getMostRecentRun(db: DB, userId: string): Promise<ReportRun | null> {
+export async function getMostRecentRun(db: DB): Promise<ReportRun | null> {
   const { data, error } = await db
     .from("report_runs")
     .select("*")
-    .eq("user_id", userId)
     .order("requested_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -132,8 +120,7 @@ export async function getMostRecentRun(db: DB, userId: string): Promise<ReportRu
 /**
  * Records a successful scraper dispatch: sets the row's counts, then moves
  * status queued -> sent via the guarded RPC. Must use the SERVICE-ROLE
- * client — a user has no update policy on report_runs (status is owned
- * exclusively by server-side code).
+ * client — users have no UPDATE policy on report_runs.
  */
 export async function markRunDispatched(
   admin: DB,

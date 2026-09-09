@@ -6,17 +6,17 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { settingsSchema } from "@/lib/validation/schemas";
 import { ok, fail, type ActionResult } from "@/lib/utils/result";
 import { handleDataError } from "@/lib/utils/pg-error";
-import * as profilesData from "@/lib/data/profiles";
-import type { Profile } from "@/lib/data/profiles";
+import * as reportSettingsData from "@/lib/data/report-settings";
+import type { ReportSettings } from "@/lib/data/report-settings";
 
-export async function updateSettingsAction(_prev: unknown, formData: FormData): Promise<ActionResult<Profile>> {
-  const user = await requireUser();
+/** Report settings are a single shared row for the whole team. */
+export async function updateSettingsAction(_prev: unknown, formData: FormData): Promise<ActionResult<ReportSettings>> {
+  await requireUser();
 
   const parsed = settingsSchema.safeParse({
     companyName: formData.get("companyName") || null,
     reportEmail: formData.get("reportEmail"),
     dailyReportsEnabled: formData.get("dailyReportsEnabled") === "true",
-    preferredReportHour: Number(formData.get("preferredReportHour")),
     timezone: formData.get("timezone"),
   });
 
@@ -26,10 +26,10 @@ export async function updateSettingsAction(_prev: unknown, formData: FormData): 
 
   const supabase = await createServerSupabase();
   try {
-    const profile = await profilesData.updateProfile(supabase, user.id, parsed.data);
+    const settings = await reportSettingsData.updateReportSettings(supabase, parsed.data);
     revalidatePath("/settings");
     revalidatePath("/dashboard");
-    return ok(profile);
+    return ok(settings);
   } catch (error) {
     return handleDataError(error);
   }

@@ -2,26 +2,30 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, Search, Users } from "lucide-react";
+import { ArrowLeft, ExternalLink, Search, User, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { CompetitorFormDialog } from "@/components/competitors/competitor-form-dialog";
 import { DeleteCompetitorDialog } from "@/components/competitors/delete-competitor-dialog";
 import { MAX_COMPETITORS_PER_PRODUCT } from "@/lib/validation/schemas";
-import type { ProductWithCompetitors } from "@/lib/data/products";
+import type { Product } from "@/lib/data/products";
+import type { CompetitorWithAttribution } from "@/lib/data/competitors";
 
-export function CompetitorsPageClient({ product }: { product: ProductWithCompetitors }) {
+interface CompetitorsPageClientProps {
+  product: Product;
+  competitors: CompetitorWithAttribution[];
+}
+
+export function CompetitorsPageClient({ product, competitors }: CompetitorsPageClientProps) {
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return product.competitors;
-    return product.competitors.filter(
-      (c) => c.title.toLowerCase().includes(q) || c.asin.toLowerCase().includes(q),
-    );
-  }, [product.competitors, query]);
+    if (!q) return competitors;
+    return competitors.filter((c) => c.title.toLowerCase().includes(q) || c.asin.toLowerCase().includes(q));
+  }, [competitors, query]);
 
-  const count = product.competitors.length;
+  const count = competitors.length;
   const atLimit = count >= MAX_COMPETITORS_PER_PRODUCT;
 
   return (
@@ -79,7 +83,7 @@ export function CompetitorsPageClient({ product }: { product: ProductWithCompeti
         </div>
       )}
 
-      {product.competitors.length === 0 ? (
+      {competitors.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border py-16 text-center">
           <p className="text-sm font-medium text-foreground">No competitors yet</p>
           <p className="max-w-sm text-sm text-muted-foreground">
@@ -91,12 +95,13 @@ export function CompetitorsPageClient({ product }: { product: ProductWithCompeti
         <p className="py-8 text-center text-sm text-muted-foreground">No competitors match &quot;{query}&quot;.</p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full min-w-[560px] border-collapse text-sm">
+          <table className="w-full min-w-[640px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-border bg-surface-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="px-4 py-2.5 font-medium">Title</th>
                 <th className="px-4 py-2.5 font-medium">ASIN</th>
                 <th className="px-4 py-2.5 font-medium">Link</th>
+                <th className="px-4 py-2.5 font-medium">Added by</th>
                 <th className="px-4 py-2.5 font-medium text-right">Actions</th>
               </tr>
             </thead>
@@ -114,6 +119,16 @@ export function CompetitorsPageClient({ product }: { product: ProductWithCompeti
                     >
                       View on Amazon <ExternalLink className="h-3 w-3" />
                     </a>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    {competitor.created_by_profile ? (
+                      <span className="inline-flex items-center gap-1">
+                        <User className="h-3 w-3" />
+                        {competitor.created_by_profile.full_name ?? competitor.created_by_profile.email}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1">

@@ -7,8 +7,15 @@ type DB = SupabaseClient<Database>;
 export type Product = Database["public"]["Tables"]["products"]["Row"];
 export type Competitor = Database["public"]["Tables"]["competitors"]["Row"];
 
+export interface Attribution {
+  id: string;
+  email: string;
+  full_name: string | null;
+}
+
 export interface ProductListItem extends Product {
   competitor_count: number;
+  created_by_profile: Attribution | null;
 }
 
 export interface ProductWithCompetitors extends Product {
@@ -18,30 +25,34 @@ export interface ProductWithCompetitors extends Product {
 /**
  * Every function below is client-agnostic: it takes the Supabase client as
  * its first argument. The dashboard passes a cookie-authenticated user
- * client (RLS applies); the cron and scraper-payload builder pass the
- * service-role client (RLS bypassed, used only for the daily job). This is
- * what keeps every query written exactly once.
+ * client; the cron and scraper-payload builder pass the service-role
+ * client. This is the shared LAETO catalog — RLS grants any authenticated
+ * user full access, so no per-user filtering happens here. created_by is
+ * stamped server-side by a database trigger, never supplied by the caller.
  */
 
-export async function listProducts(db: DB, userId: string): Promise<ProductListItem[]> {
+const ATTRIBUTION_SELECT = "created_by_profile:profiles!products_created_by_fkey(id, email, full_name)";
+
+export async function listProducts(db: DB): Promise<ProductListItem[]> {
   const { data, error } = await db
     .from("products")
-    .select("*, competitors(count)")
-    .eq("user_id", userId)
+    .select(`*, competitors(count), ${ATTRIBUTION_SELECT}`)
     .order("created_at", { ascending: false });
   if (error) throw error;
 
   return (data ?? []).map((row) => {
-    const { competitors, ...product } = row as Product & { competitors: { count: number }[] };
-    return { ...product, competitor_count: competitors?.[0]?.count ?? 0 };
+    const { competitors, ...rest } = row as Product & {
+      competitors: { count: number }[];
+      created_by_profile: Attribution | null;
+    };
+    return { ...rest, competitor_count: competitors?.[0]?.count ?? 0 };
   });
 }
 
-export async function getProduct(db: DB, userId: string, id: string): Promise<ProductWithCompetitors | null> {
+export async function getProduct(db: DB, id: string): Promise<ProductWithCompetitors | null> {
   const { data, error } = await db
     .from("products")
     .select("*, competitors(*)")
-    .eq("user_id", userId)
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
@@ -49,30 +60,17 @@ export async function getProduct(db: DB, userId: string, id: string): Promise<Pr
 }
 
 /** Products eligible for the daily scrape: notify_enabled with >=1 competitor. */
-export async function listNotifiableProductsWithCompetitors(
-  db: DB,
-  userId: string,
-): Promise<ProductWithCompetitors[]> {
-  const { data, error } = await db
-    .from("products")
-    .select("*, competitors(*)")
-    .eq("user_id", userId)
-    .eq("notify_enabled", true);
+export async function listNotifiableProductsWithCompetitors(db: DB): Promise<ProductWithCompetitors[]> {
+  const { data, error } = await db.from("products").select("*, competitors(*)").eq("notify_enabled", true);
   if (error) throw error;
   return ((data ?? []) as ProductWithCompetitors[]).filter((p) => p.competitors.length > 0);
 }
 
-export async function insertProduct(
-  db: DB,
-  userId: string,
-  input: ProductInput,
-  id?: string,
-): Promise<Product> {
+export async function insertProduct(db: DB, input: ProductInput, id?: string): Promise<Product> {
   const { data, error } = await db
     .from("products")
     .insert({
       ...(id ? { id } : {}),
-      user_id: userId,
       asin: input.asin,
       title: input.title,
       notify_enabled: input.notifyEnabled,
@@ -84,12 +82,7 @@ export async function insertProduct(
   return data;
 }
 
-export async function updateProduct(
-  db: DB,
-  userId: string,
-  id: string,
-  input: ProductInput,
-): Promise<Product> {
+export async function updateProduct(db: DB, id: string, input: ProductInput): Promise<Product> {
   const { data, error } = await db
     .from("products")
     .update({
@@ -97,7 +90,6 @@ export async function updateProduct(
       title: input.title,
       notify_enabled: input.notifyEnabled,
     })
-    .eq("user_id", userId)
     .eq("id", id)
     .select("*")
     .single();
@@ -105,11 +97,10 @@ export async function updateProduct(
   return data;
 }
 
-export async function setProductNotify(db: DB, userId: string, id: string, notifyEnabled: boolean): Promise<Product> {
+export async function setProductNotify(db: DB, id: string, notifyEnabled: boolean): Promise<Product> {
   const { data, error } = await db
     .from("products")
     .update({ notify_enabled: notifyEnabled })
-    .eq("user_id", userId)
     .eq("id", id)
     .select("*")
     .single();
@@ -124,14 +115,8 @@ export async function setProductImage(db: DB, productId: string, path: string | 
   return data;
 }
 
-export async function deleteProduct(db: DB, userId: string, id: string): Promise<Product | null> {
-  const { data, error } = await db
-    .from("products")
-    .delete()
-    .eq("user_id", userId)
-    .eq("id", id)
-    .select("*")
-    .maybeSingle();
+export async function deleteProduct(db: DB, id: string): Promise<Product | null> {
+  const { data, error } = await db.from("products").delete().eq("id", id).select("*").maybeSingle();
   if (error) throw error;
   return data;
 }

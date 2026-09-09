@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth/require-user";
 import { createServerSupabase } from "@/lib/supabase/server";
 import * as profilesData from "@/lib/data/profiles";
+import * as reportSettingsData from "@/lib/data/report-settings";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { SettingsForm } from "@/components/settings/settings-form";
 import { ChangePasswordForm } from "@/components/settings/change-password-form";
 import { SignOutAllButton } from "@/components/settings/sign-out-all-button";
+import { TeamSection } from "@/components/settings/team-section";
 
 export const metadata: Metadata = { title: "Settings — LAETO LTD" };
 export const dynamic = "force-dynamic";
@@ -13,13 +15,17 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const user = await requireUser();
   const supabase = await createServerSupabase();
-  const profile = await profilesData.getProfile(supabase, user.id);
+
+  const [settings, members] = await Promise.all([
+    reportSettingsData.getReportSettings(supabase),
+    profilesData.listTeamMembers(supabase),
+  ]);
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
       <div>
         <h1 className="text-xl font-semibold tracking-tight text-foreground">Settings</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Manage your account and report preferences.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Manage your account, your team, and report preferences.</p>
       </div>
 
       <Card>
@@ -46,7 +52,9 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
-      {profile && <SettingsForm profile={profile} />}
+      <TeamSection members={members} currentUserId={user.id} />
+
+      {settings && <SettingsForm settings={settings} />}
     </div>
   );
 }

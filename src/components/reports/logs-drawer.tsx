@@ -7,13 +7,13 @@ import { Button } from "@/components/ui/button";
 import { getRecentRunsAction } from "@/lib/actions/run-actions";
 import { RunLogTable } from "@/components/reports/run-log-table";
 import { useRunPolling } from "@/hooks/use-run-polling";
-import type { ReportRunWithProductTitle } from "@/lib/data/report-runs";
+import type { ReportRunWithAttribution } from "@/lib/data/report-runs";
 
 const ACTIVE_STATUSES = new Set(["queued", "sent", "processing"]);
 
 export function LogsDrawer({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
-  const [runs, setRuns] = useState<ReportRunWithProductTitle[]>([]);
+  const [runs, setRuns] = useState<ReportRunWithAttribution[]>([]);
   const [isPending, startTransition] = useTransition();
   const [loadedOnce, setLoadedOnce] = useState(false);
 

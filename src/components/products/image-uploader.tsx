@@ -10,7 +10,6 @@ import { ACCEPTED_IMAGE_TYPES, MAX_IMAGE_BYTES, imageFileSchema } from "@/lib/va
 import { formatFileSize } from "@/lib/utils/format";
 
 interface ImageUploaderProps {
-  userId: string;
   productId: string;
   /** Existing signed URL to preview, if the product already has an image. */
   existingImageUrl?: string | null;
@@ -21,11 +20,11 @@ interface ImageUploaderProps {
 /**
  * Uploads browser-direct to the private product-images bucket rather than
  * through a Server Action: Next's Server Action body limit defaults to 1MB,
- * far below a typical product photo, and Storage RLS already restricts
- * writes to this user's own {user_id}/ prefix, so nothing is lost by
+ * far below a typical product photo. Storage RLS permits any authenticated
+ * team member to write within the shared bucket, so nothing is lost by
  * skipping the server round-trip for the bytes themselves.
  */
-export function ImageUploader({ userId, productId, existingImageUrl, onChange }: ImageUploaderProps) {
+export function ImageUploader({ productId, existingImageUrl, onChange }: ImageUploaderProps) {
   const [preview, setPreview] = useState<string | null>(existingImageUrl ?? null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +44,7 @@ export function ImageUploader({ userId, productId, existingImageUrl, onChange }:
 
     try {
       const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const path = `${userId}/${productId}/${crypto.randomUUID()}.${extension}`;
+      const path = `${productId}/${crypto.randomUUID()}.${extension}`;
       const supabase = createBrowserSupabase();
       const { error: uploadError } = await supabase.storage
         .from("product-images")

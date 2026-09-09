@@ -24,22 +24,24 @@ function makeFakeSupabase(signedUrlByPath: Record<string, string>) {
 
 const product: ProductWithCompetitors = {
   id: "prod-1",
-  user_id: "user-1",
   asin: "B00ABC1234",
   title: "LAETO Widget",
-  image_path: "user-1/prod-1/photo.jpg",
+  image_path: "prod-1/photo.jpg",
   notify_enabled: true,
   last_checked_at: null,
+  created_by: "user-1",
+  updated_by: "user-1",
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
   competitors: [
     {
       id: "comp-1",
       product_id: "prod-1",
-      user_id: "user-1",
       asin: "B00XYZ9999",
       title: "Rival Widget",
       amazon_url: "https://www.amazon.co.uk/dp/B00XYZ9999",
+      created_by: "user-1",
+      updated_by: "user-1",
       created_at: "2026-01-01T00:00:00Z",
       updated_at: "2026-01-01T00:00:00Z",
     },
@@ -48,7 +50,7 @@ const product: ProductWithCompetitors = {
 
 describe("buildScraperPayload", () => {
   it("builds a payload matching the documented external contract shape", async () => {
-    const db = makeFakeSupabase({ "user-1/prod-1/photo.jpg": "https://signed.example/photo.jpg" });
+    const db = makeFakeSupabase({ "prod-1/photo.jpg": "https://signed.example/photo.jpg" });
 
     const payload = await buildScraperPayload(db, {
       reportRunId: "run-1",

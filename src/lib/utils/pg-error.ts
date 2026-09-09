@@ -9,13 +9,13 @@ export function mapPostgrestError<T = never>(error: PostgrestError): ActionResul
   const constraint = error.message;
 
   if (error.code === "23505") {
-    if (constraint.includes("products_user_asin_key")) {
-      return fail("conflict", "You are already tracking this ASIN.");
+    if (constraint.includes("products_asin_key")) {
+      return fail("conflict", "This ASIN is already tracked.");
     }
     if (constraint.includes("competitors_product_asin_key")) {
       return fail("conflict", "This competitor is already added to this product.");
     }
-    if (constraint.includes("report_runs_one_daily_per_user_per_day")) {
+    if (constraint.includes("report_runs_one_daily_per_day")) {
       return fail("conflict", "A daily report has already run for today.");
     }
     if (constraint.includes("report_runs_one_active_manual_per_product")) {

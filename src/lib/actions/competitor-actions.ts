@@ -22,7 +22,7 @@ export async function createCompetitorAction(
   _prev: unknown,
   formData: FormData,
 ): Promise<ActionResult<Competitor>> {
-  const user = await requireUser();
+  await requireUser();
   const parsed = parseCompetitorForm(formData);
   if (!parsed.success) {
     return fail("validation", "Check the highlighted fields.", parsed.error.flatten().fieldErrors);
@@ -36,7 +36,7 @@ export async function createCompetitorAction(
   }
 
   try {
-    const competitor = await competitorsData.insertCompetitor(supabase, user.id, productId, parsed.data);
+    const competitor = await competitorsData.insertCompetitor(supabase, productId, parsed.data);
     revalidatePath(`/products/${productId}/competitors`);
     revalidatePath("/dashboard");
     return ok(competitor);
@@ -51,7 +51,7 @@ export async function updateCompetitorAction(
   _prev: unknown,
   formData: FormData,
 ): Promise<ActionResult<Competitor>> {
-  const user = await requireUser();
+  await requireUser();
   const parsed = parseCompetitorForm(formData);
   if (!parsed.success) {
     return fail("validation", "Check the highlighted fields.", parsed.error.flatten().fieldErrors);
@@ -59,7 +59,7 @@ export async function updateCompetitorAction(
 
   const supabase = await createServerSupabase();
   try {
-    const competitor = await competitorsData.updateCompetitor(supabase, user.id, competitorId, parsed.data);
+    const competitor = await competitorsData.updateCompetitor(supabase, competitorId, parsed.data);
     revalidatePath(`/products/${productId}/competitors`);
     return ok(competitor);
   } catch (error) {
@@ -68,10 +68,10 @@ export async function updateCompetitorAction(
 }
 
 export async function deleteCompetitorAction(productId: string, competitorId: string): Promise<ActionResult<null>> {
-  const user = await requireUser();
+  await requireUser();
   const supabase = await createServerSupabase();
   try {
-    await competitorsData.deleteCompetitor(supabase, user.id, competitorId);
+    await competitorsData.deleteCompetitor(supabase, competitorId);
     revalidatePath(`/products/${productId}/competitors`);
     revalidatePath("/dashboard");
     return ok(null);

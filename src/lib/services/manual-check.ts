@@ -3,7 +3,7 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types/database";
 import * as productsData from "@/lib/data/products";
 import * as reportRunsData from "@/lib/data/report-runs";
-import * as profilesData from "@/lib/data/profiles";
+import * as reportSettingsData from "@/lib/data/report-settings";
 import { buildScraperPayload, computeTotals, dispatchScrapeJob } from "@/lib/scraper";
 import { fail, ok, type ActionResult } from "@/lib/utils/result";
 import type { ReportRun } from "@/lib/data/report-runs";
@@ -20,9 +20,12 @@ export interface ManualCheckResult {
 /**
  * The single implementation behind "Check now", shared by the
  * POST /api/products/[productId]/check-now route handler and any future
- * server-side caller. Takes both a user-scoped client (for the RLS-enforced
- * ownership check and insert) and the service-role client (for the status
- * update after dispatch, since users have no UPDATE policy on report_runs).
+ * server-side caller. `user` gates AUTHENTICATION only (must be logged in)
+ * — the product catalog is a shared team workspace, so there is no
+ * per-user ownership check. Takes both a user-scoped client (RLS-enforced
+ * insert, stamping requested_by from auth.uid()) and the service-role
+ * client (status update after dispatch — users have no UPDATE policy on
+ * report_runs).
  */
 export async function performManualCheck(
   userClient: DB,
@@ -30,26 +33,26 @@ export async function performManualCheck(
   user: User,
   productId: string,
 ): Promise<ActionResult<ManualCheckResult>> {
-  const product = await productsData.getProduct(userClient, user.id, productId);
+  const product = await productsData.getProduct(userClient, productId);
   if (!product) return fail("not_found", "Product not found.");
   if (product.competitors.length === 0) {
     return fail("validation", "Add at least one competitor before checking this product's price.");
   }
 
-  const inserted = await reportRunsData.insertManualRun(userClient, user.id, productId);
+  const inserted = await reportRunsData.insertManualRun(userClient, productId);
   if (inserted === "conflict") {
     return fail("conflict", "A check is already running for this product.");
   }
 
-  const profile = await profilesData.getProfile(userClient, user.id);
+  const settings = await reportSettingsData.getReportSettings(userClient);
   const requestedAt = new Date().toISOString();
 
   const payload = await buildScraperPayload(userClient, {
     reportRunId: inserted.id,
     triggerType: "manual",
     requestedAt,
-    recipientEmail: profile?.report_email ?? user.email ?? "",
-    timezone: profile?.timezone ?? "UTC",
+    recipientEmail: settings?.report_email ?? user.email ?? "",
+    timezone: settings?.timezone ?? "UTC",
     products: [product],
   });
 

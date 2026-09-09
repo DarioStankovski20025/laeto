@@ -1,8 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,18 +12,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { updateSettingsAction } from "@/lib/actions/settings-actions";
 import { listTimezones } from "@/lib/utils/timezones";
 import type { ActionResult } from "@/lib/utils/result";
-import type { Profile } from "@/lib/data/profiles";
+import type { ReportSettings } from "@/lib/data/report-settings";
 
-const initialState: ActionResult<Profile> = { ok: false, code: "validation", message: "" };
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
-const CRON_HONORS_HOUR = process.env.NEXT_PUBLIC_CRON_MODE !== "daily";
+const initialState: ActionResult<ReportSettings> = { ok: false, code: "validation", message: "" };
 
-export function SettingsForm({ profile }: { profile: Profile }) {
+export function SettingsForm({ settings }: { settings: ReportSettings }) {
   const [state, formAction, pending] = useActionState(updateSettingsAction, initialState);
-  const [dailyReportsEnabled, setDailyReportsEnabled] = useState(profile.daily_reports_enabled);
+  const [dailyReportsEnabled, setDailyReportsEnabled] = useState(settings.daily_reports_enabled);
   const fieldErrors = !state.ok ? state.fieldErrors : undefined;
   const timezones = listTimezones();
-  const preferredHour = Number(profile.preferred_report_time.split(":")[0] ?? 8);
 
   useEffect(() => {
     if (state.ok) toast.success("Settings saved.");
@@ -34,13 +30,13 @@ export function SettingsForm({ profile }: { profile: Profile }) {
     <Card>
       <CardHeader>
         <CardTitle>Report settings</CardTitle>
-        <CardDescription>Configure where and when daily reports are sent.</CardDescription>
+        <CardDescription>Shared for the whole team — configure where and when daily reports are sent.</CardDescription>
       </CardHeader>
       <CardContent>
         <form action={formAction} className="flex flex-col gap-5">
           <input type="hidden" name="dailyReportsEnabled" value={String(dailyReportsEnabled)} />
           <Field label="Company name" htmlFor="companyName">
-            <Input id="companyName" name="companyName" defaultValue={profile.company_name ?? ""} />
+            <Input id="companyName" name="companyName" defaultValue={settings.company_name ?? ""} />
           </Field>
 
           <Field label="Report recipient email" htmlFor="reportEmail" error={fieldErrors?.reportEmail?.[0]}>
@@ -49,7 +45,7 @@ export function SettingsForm({ profile }: { profile: Profile }) {
               name="reportEmail"
               type="email"
               required
-              defaultValue={profile.report_email ?? ""}
+              defaultValue={settings.report_email ?? ""}
               invalid={Boolean(fieldErrors?.reportEmail)}
             />
           </Field>
@@ -62,31 +58,15 @@ export function SettingsForm({ profile }: { profile: Profile }) {
             <Switch checked={dailyReportsEnabled} onCheckedChange={setDailyReportsEnabled} aria-label="Toggle daily reports" />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field
-              label="Preferred report hour"
-              htmlFor="preferredReportHour"
-              hint={CRON_HONORS_HOUR ? "Your local time." : "Reports currently run once daily at a fixed time; this preference is not yet honored."}
-            >
-              <NativeSelect id="preferredReportHour" name="preferredReportHour" defaultValue={preferredHour} disabled={!CRON_HONORS_HOUR}>
-                {HOURS.map((h) => (
-                  <option key={h} value={h}>
-                    {String(h).padStart(2, "0")}:00
-                  </option>
-                ))}
-              </NativeSelect>
-            </Field>
-
-            <Field label="Timezone" htmlFor="timezone" error={fieldErrors?.timezone?.[0]}>
-              <NativeSelect id="timezone" name="timezone" defaultValue={profile.timezone} invalid={Boolean(fieldErrors?.timezone)}>
-                {timezones.map((tz) => (
-                  <option key={tz} value={tz}>
-                    {tz}
-                  </option>
-                ))}
-              </NativeSelect>
-            </Field>
-          </div>
+          <Field label="Timezone" htmlFor="timezone" error={fieldErrors?.timezone?.[0]}>
+            <NativeSelect id="timezone" name="timezone" defaultValue={settings.timezone} invalid={Boolean(fieldErrors?.timezone)}>
+              {timezones.map((tz) => (
+                <option key={tz} value={tz}>
+                  {tz}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
 
           {!state.ok && state.message && !fieldErrors && (
             <div role="alert" className="rounded-md border border-status-failed bg-status-failed-bg px-3 py-2 text-sm text-status-failed">

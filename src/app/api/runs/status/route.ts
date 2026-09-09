@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const runs = await reportRunsData.getRunStatuses(supabase, user.id, ids);
+  const runs = await reportRunsData.getRunStatuses(supabase, ids);
   const anyActive = runs.some((r) => r.status === "queued" || r.status === "sent" || r.status === "processing");
 
   return applyAuthHeaders(

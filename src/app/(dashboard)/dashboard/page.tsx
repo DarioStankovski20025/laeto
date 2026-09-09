@@ -11,14 +11,14 @@ export const metadata: Metadata = { title: "Dashboard — LAETO LTD" };
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const user = await requireUser();
+  await requireUser();
   const supabase = await createServerSupabase();
 
   const [products, latestCompletedRun, mostRecentRun, recentRuns] = await Promise.all([
-    productsData.listProducts(supabase, user.id),
-    reportRunsData.getLatestCompletedRun(supabase, user.id),
-    reportRunsData.getMostRecentRun(supabase, user.id),
-    reportRunsData.listRuns(supabase, user.id, { limit: 100 }),
+    productsData.listProducts(supabase),
+    reportRunsData.getLatestCompletedRun(supabase),
+    reportRunsData.getMostRecentRun(supabase),
+    reportRunsData.listRuns(supabase),
   ]);
 
   const signedUrls = await signProductImages(
@@ -44,7 +44,7 @@ export default async function DashboardPage() {
       <div>
         <h1 className="text-xl font-semibold tracking-tight text-foreground">Dashboard</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Monitor your Amazon products against their tracked competitors.
+          Monitor LAETO&apos;s Amazon products against their tracked competitors.
         </p>
       </div>
 

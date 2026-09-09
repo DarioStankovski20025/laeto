@@ -15,12 +15,11 @@ import type { Product } from "@/lib/data/products";
 
 interface ProductFormProps {
   mode: "create" | "edit";
-  userId: string;
   product?: Product;
   existingImageUrl?: string | null;
 }
 
-export function ProductForm({ mode, userId, product, existingImageUrl }: ProductFormProps) {
+export function ProductForm({ mode, product, existingImageUrl }: ProductFormProps) {
   const router = useRouter();
   const [productId] = useState(() => product?.id ?? crypto.randomUUID());
   const [imagePath, setImagePath] = useState<string | null>(product?.image_path ?? null);
@@ -56,7 +55,6 @@ export function ProductForm({ mode, userId, product, existingImageUrl }: Product
 
       <Field label="Product image" htmlFor="product-image-input">
         <ImageUploader
-          userId={userId}
           productId={productId}
           existingImageUrl={existingImageUrl}
           onChange={setImagePath}

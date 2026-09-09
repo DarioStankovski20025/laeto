@@ -11,28 +11,9 @@ export async function getProfile(db: DB, userId: string): Promise<Profile | null
   return data;
 }
 
-export interface UpdateProfileInput {
-  companyName?: string | null;
-  reportEmail: string;
-  dailyReportsEnabled: boolean;
-  preferredReportHour: number;
-  timezone: string;
-}
-
-export async function updateProfile(db: DB, userId: string, input: UpdateProfileInput) {
-  const preferredReportTime = `${String(input.preferredReportHour).padStart(2, "0")}:00:00`;
-  const { data, error } = await db
-    .from("profiles")
-    .update({
-      company_name: input.companyName ?? null,
-      report_email: input.reportEmail,
-      daily_reports_enabled: input.dailyReportsEnabled,
-      preferred_report_time: preferredReportTime,
-      timezone: input.timezone,
-    })
-    .eq("id", userId)
-    .select("*")
-    .single();
+/** Every team member — shared-workspace attribution and the Settings "Team" list. */
+export async function listTeamMembers(db: DB): Promise<Profile[]> {
+  const { data, error } = await db.from("profiles").select("*").order("created_at", { ascending: true });
   if (error) throw error;
-  return data;
+  return data ?? [];
 }

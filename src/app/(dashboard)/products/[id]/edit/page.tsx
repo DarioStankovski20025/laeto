@@ -11,10 +11,10 @@ export const dynamic = "force-dynamic";
 
 export default async function EditProductPage(props: PageProps<"/products/[id]/edit">) {
   const { id } = await props.params;
-  const user = await requireUser();
+  await requireUser();
   const supabase = await createServerSupabase();
 
-  const product = await productsData.getProduct(supabase, user.id, id);
+  const product = await productsData.getProduct(supabase, id);
   if (!product) notFound();
 
   const existingImageUrl = product.image_path ? await signOneProductImage(supabase, product.image_path) : null;
@@ -25,7 +25,7 @@ export default async function EditProductPage(props: PageProps<"/products/[id]/e
         <h1 className="text-xl font-semibold tracking-tight text-foreground">Edit product</h1>
         <p className="mt-1 text-sm text-muted-foreground">Update {product.title}.</p>
       </div>
-      <ProductForm mode="edit" userId={user.id} product={product} existingImageUrl={existingImageUrl} />
+      <ProductForm mode="edit" product={product} existingImageUrl={existingImageUrl} />
     </div>
   );
 }

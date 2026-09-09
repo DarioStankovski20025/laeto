@@ -3,6 +3,11 @@
  * connected to the live project and keep in sync on every future migration:
  *
  *   npx supabase gen types typescript --project-id <ref> --schema public,storage > src/lib/types/database.ts
+ *
+ * Shared-workspace model: every authenticated user of this app sees and
+ * edits the same LAETO catalog. created_by/updated_by/requested_by columns
+ * are attribution only (server-stamped from auth.uid() via triggers), not
+ * an access-control boundary — RLS grants access to any authenticated user.
  */
 
 export type TriggerType = "daily" | "manual";
@@ -14,53 +19,88 @@ export interface Database {
       profiles: {
         Row: {
           id: string;
-          company_name: string | null;
+          email: string;
           full_name: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["profiles"]["Row"]> & { id: string; email: string };
+        Update: Partial<Database["public"]["Tables"]["profiles"]["Row"]>;
+        Relationships: [];
+      };
+      report_settings: {
+        Row: {
+          id: boolean;
+          company_name: string | null;
           report_email: string | null;
           daily_reports_enabled: boolean;
           preferred_report_time: string;
           timezone: string;
+          updated_by: string | null;
           created_at: string;
           updated_at: string;
         };
-        Insert: Partial<Database["public"]["Tables"]["profiles"]["Row"]> & { id: string };
-        Update: Partial<Database["public"]["Tables"]["profiles"]["Row"]>;
-        Relationships: [];
+        Insert: Partial<Database["public"]["Tables"]["report_settings"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["report_settings"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "report_settings_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       products: {
         Row: {
           id: string;
-          user_id: string;
           asin: string;
           title: string;
           image_path: string | null;
           notify_enabled: boolean;
           last_checked_at: string | null;
+          created_by: string | null;
+          updated_by: string | null;
           created_at: string;
           updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["products"]["Row"]> & {
-          user_id: string;
           asin: string;
           title: string;
         };
         Update: Partial<Database["public"]["Tables"]["products"]["Row"]>;
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "products_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "products_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       competitors: {
         Row: {
           id: string;
           product_id: string;
-          user_id: string;
           asin: string;
           title: string;
           amazon_url: string;
+          created_by: string | null;
+          updated_by: string | null;
           created_at: string;
           updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["competitors"]["Row"]> & {
           product_id: string;
-          user_id: string;
           asin: string;
           title: string;
           amazon_url: string;
@@ -68,18 +108,32 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["competitors"]["Row"]>;
         Relationships: [
           {
-            foreignKeyName: "competitors_product_owner_fk";
-            columns: ["product_id", "user_id"];
+            foreignKeyName: "competitors_product_id_fkey";
+            columns: ["product_id"];
             isOneToOne: false;
             referencedRelation: "products";
-            referencedColumns: ["id", "user_id"];
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "competitors_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "competitors_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
           },
         ];
       };
       report_runs: {
         Row: {
           id: string;
-          user_id: string;
+          requested_by: string | null;
           product_id: string | null;
           trigger_type: TriggerType;
           status: ReportRunStatus;
@@ -99,7 +153,6 @@ export interface Database {
           updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["report_runs"]["Row"]> & {
-          user_id: string;
           trigger_type: TriggerType;
         };
         Update: Partial<Database["public"]["Tables"]["report_runs"]["Row"]>;
@@ -109,6 +162,13 @@ export interface Database {
             columns: ["product_id"];
             isOneToOne: false;
             referencedRelation: "products";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "report_runs_requested_by_fkey";
+            columns: ["requested_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
             referencedColumns: ["id"];
           },
         ];
@@ -147,7 +207,7 @@ export interface Database {
       };
       select_daily_report_candidates: {
         Args: { p_mode?: string };
-        Returns: { user_id: string; report_email: string; company_name: string | null; timezone: string }[];
+        Returns: { report_email: string; company_name: string | null; timezone: string }[];
       };
       expire_stale_report_runs: {
         Args: { p_max_age?: string };

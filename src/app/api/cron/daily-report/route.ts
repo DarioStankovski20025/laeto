@@ -11,15 +11,15 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * Runs hourly (see vercel.json). Each invocation selects only accounts whose
- * LOCAL hour (per their stored IANA timezone) matches their
- * preferred_report_time, so the setting genuinely drives delivery — a
- * once-daily fixed-UTC cron cannot honor a per-account preferred time.
+ * Runs hourly (see vercel.json). There is exactly one shared LAETO team
+ * workspace, so each invocation checks the single report_settings row: is
+ * the daily report due (LOCAL hour, per the stored IANA timezone, matches
+ * the preferred hour) and not already sent today? If so, dispatch once for
+ * the whole shared product catalog.
  *
- * Set CRON_MODE=daily to fall back to a once-a-day, every-enabled-account
- * invocation (e.g. on a platform limited to a single daily cron); in that
- * mode the preferred hour is not honored, and the Settings UI disables the
- * hour picker accordingly (see src/app/(dashboard)/settings).
+ * Set CRON_MODE=daily to fall back to a once-a-day invocation (e.g. on a
+ * platform limited to a single daily cron); in that mode the preferred hour
+ * is not honored, and the Settings UI explains that plainly.
  */
 export async function GET(request: NextRequest) {
   if (!bearerMatches(request.headers.get("authorization"), serverEnv.cronSecret())) {
@@ -43,48 +43,45 @@ export async function GET(request: NextRequest) {
   const summary = {
     mode,
     expiredStaleRuns: expiredCount,
-    candidates: candidates?.length ?? 0,
+    due: (candidates?.length ?? 0) > 0,
     sent: 0,
     failed: 0,
     skippedDuplicate: 0,
     skippedNoProducts: 0,
   };
 
-  for (const account of candidates ?? []) {
-    const products = await productsData.listNotifiableProductsWithCompetitors(admin, account.user_id);
+  const settings = candidates?.[0];
 
-    const inserted = await reportRunsData.insertDailyRun(admin, account.user_id);
+  if (settings) {
+    const products = await productsData.listNotifiableProductsWithCompetitors(admin);
+    const inserted = await reportRunsData.insertDailyRun(admin);
+
     if (inserted === "duplicate") {
       summary.skippedDuplicate++;
-      continue;
-    }
-
-    if (products.length === 0) {
+    } else if (products.length === 0) {
       await reportRunsData.markRunSkippedNoProducts(admin, inserted.id);
       summary.skippedNoProducts++;
-      continue;
+    } else {
+      const requestedAt = new Date().toISOString();
+      const payload = await buildScraperPayload(admin, {
+        reportRunId: inserted.id,
+        triggerType: "daily",
+        requestedAt,
+        recipientEmail: settings.report_email,
+        timezone: settings.timezone,
+        products,
+      });
+
+      const dispatch = await dispatchScrapeJob(payload);
+
+      if (!dispatch.ok) {
+        await reportRunsData.markRunFailed(admin, inserted.id, dispatch.error.toUserMessage());
+        summary.failed++;
+      } else {
+        await reportRunsData.markRunDispatched(admin, inserted.id, dispatch.ack, computeTotals(products));
+        summary.sent++;
+      }
     }
-
-    const requestedAt = new Date().toISOString();
-    const payload = await buildScraperPayload(admin, {
-      reportRunId: inserted.id,
-      triggerType: "daily",
-      requestedAt,
-      recipientEmail: account.report_email,
-      timezone: account.timezone,
-      products,
-    });
-
-    const dispatch = await dispatchScrapeJob(payload);
-
-    if (!dispatch.ok) {
-      await reportRunsData.markRunFailed(admin, inserted.id, dispatch.error.toUserMessage());
-      summary.failed++;
-      continue;
-    }
-
-    await reportRunsData.markRunDispatched(admin, inserted.id, dispatch.ack, computeTotals(products));
-    summary.sent++;
   }
 
   const gcDrained = await drainStorageGcQueue(admin).catch(() => 0);

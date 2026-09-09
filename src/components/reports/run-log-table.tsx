@@ -1,18 +1,18 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, User } from "lucide-react";
 import { RunStatusBadge } from "@/components/reports/run-status-badge";
 import { formatDateTime } from "@/lib/utils/format";
-import type { ReportRunWithProductTitle } from "@/lib/data/report-runs";
+import type { ReportRunWithAttribution } from "@/lib/data/report-runs";
 
-export function RunLogTable({ runs }: { runs: ReportRunWithProductTitle[] }) {
+export function RunLogTable({ runs }: { runs: ReportRunWithAttribution[] }) {
   if (runs.length === 0) {
     return <p className="py-8 text-center text-sm text-muted-foreground">No report runs yet.</p>;
   }
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[640px] border-collapse text-sm">
+      <table className="w-full min-w-[720px] border-collapse text-sm">
         <thead>
           <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
             <th className="py-2 pr-3 font-medium">Trigger</th>
@@ -21,6 +21,7 @@ export function RunLogTable({ runs }: { runs: ReportRunWithProductTitle[] }) {
             <th className="py-2 pr-3 font-medium">Completed</th>
             <th className="py-2 pr-3 font-medium">Products</th>
             <th className="py-2 pr-3 font-medium">Competitors</th>
+            <th className="py-2 pr-3 font-medium">Requested by</th>
             <th className="py-2 pr-3 font-medium">Report</th>
           </tr>
         </thead>
@@ -43,6 +44,16 @@ export function RunLogTable({ runs }: { runs: ReportRunWithProductTitle[] }) {
               <td className="py-3 pr-3 whitespace-nowrap font-mono text-xs">{formatDateTime(run.completed_at)}</td>
               <td className="py-3 pr-3">{run.products_count}</td>
               <td className="py-3 pr-3">{run.competitors_count}</td>
+              <td className="py-3 pr-3 text-xs text-muted-foreground">
+                {run.requested_by_profile ? (
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                    <User className="h-3 w-3" />
+                    {run.requested_by_profile.full_name ?? run.requested_by_profile.email}
+                  </span>
+                ) : (
+                  <span className="italic">Automated</span>
+                )}
+              </td>
               <td className="py-3 pr-3">
                 {run.report_file_url ? (
                   <a

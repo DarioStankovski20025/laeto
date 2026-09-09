@@ -20,7 +20,10 @@ export function DialogContent({
       <DialogPrimitive.Overlay className="radix-overlay fixed inset-0 z-50 bg-black/40" />
       <DialogPrimitive.Content
         className={cn(
-          "radix-content fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2",
+          // Centering is applied by the standalone `translate` CSS property
+          // on `.radix-content` in globals.css, not a Tailwind transform
+          // utility — combining both would double the offset.
+          "radix-content fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md",
           "rounded-lg border border-border bg-surface p-6 shadow-lg focus:outline-none",
           className,
         )}

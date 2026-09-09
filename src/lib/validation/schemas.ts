@@ -102,10 +102,17 @@ export const settingsSchema = z.object({
   companyName: z.string().trim().max(200).nullable().optional(),
   reportEmail: emailSchema,
   dailyReportsEnabled: z.boolean(),
-  preferredReportHour: z.number().int().min(0).max(23),
   timezone: z.string().trim().min(1, { error: "Select a timezone." }),
 });
 export type SettingsInput = z.infer<typeof settingsSchema>;
+
+// --- Team ---------------------------------------------------------------
+
+export const createTeamMemberSchema = z.object({
+  email: emailSchema,
+  password: z.string().min(8, { error: "Password must be at least 8 characters." }),
+});
+export type CreateTeamMemberInput = z.infer<typeof createTeamMemberSchema>;
 
 // --- Scraper callback ---------------------------------------------------
 
