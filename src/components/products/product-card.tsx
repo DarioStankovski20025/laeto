@@ -4,25 +4,28 @@ import { useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ExternalLink, ImageOff, Pencil, User, Users } from "lucide-react";
+import { ExternalLink, Folder as FolderIcon, ImageOff, Pencil, User, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { RunStatusBadge } from "@/components/reports/run-status-badge";
 import { CheckNowModal } from "@/components/products/check-now-modal";
 import { DeleteProductDialog } from "@/components/products/delete-product-dialog";
+import { FolderPickerDialog } from "@/components/products/folder-picker-dialog";
 import { setProductNotifyAction } from "@/lib/actions/product-actions";
 import { formatRelativeTime } from "@/lib/utils/format";
 import type { ProductListItem } from "@/lib/data/products";
+import type { Folder } from "@/lib/data/folders";
 import type { ReportRunStatus } from "@/lib/types/database";
 
 interface ProductCardProps {
   product: ProductListItem;
   imageUrl: string | undefined;
   lastRunStatus: ReportRunStatus | undefined;
+  folders: Folder[];
 }
 
-export function ProductCard({ product, imageUrl, lastRunStatus }: ProductCardProps) {
+export function ProductCard({ product, imageUrl, lastRunStatus, folders }: ProductCardProps) {
   const [notifyEnabled, setNotifyEnabled] = useState(product.notify_enabled);
   const [isPending, startTransition] = useTransition();
   const [imageFailed, setImageFailed] = useState(false);
@@ -78,6 +81,12 @@ export function ProductCard({ product, imageUrl, lastRunStatus }: ProductCardPro
               <User className="h-3 w-3" /> {product.created_by_profile.full_name ?? product.created_by_profile.email}
             </p>
           )}
+          {product.folder && (
+            <p className="mt-1 inline-flex max-w-full items-center gap-1 rounded-md bg-surface-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+              <FolderIcon className="h-3 w-3 shrink-0" />
+              <span className="truncate">{product.folder.name}</span>
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -104,6 +113,12 @@ export function ProductCard({ product, imageUrl, lastRunStatus }: ProductCardPro
                 <Users className="h-4 w-4" /> Competitors
               </Link>
             </Button>
+            <FolderPickerDialog
+              productId={product.id}
+              productTitle={product.title}
+              currentFolderId={product.folder_id}
+              folders={folders}
+            />
             <Button asChild variant="ghost" size="icon" aria-label={`Edit ${product.title}`}>
               <Link href={`/products/${product.id}/edit`}>
                 <Pencil className="h-4 w-4" />

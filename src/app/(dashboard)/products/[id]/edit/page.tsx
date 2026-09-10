@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth/require-user";
 import { createServerSupabase } from "@/lib/supabase/server";
 import * as productsData from "@/lib/data/products";
+import * as foldersData from "@/lib/data/folders";
 import { signOneProductImage } from "@/lib/data/storage";
 import { ProductForm } from "@/components/products/product-form";
 
@@ -14,7 +15,10 @@ export default async function EditProductPage(props: PageProps<"/products/[id]/e
   await requireUser();
   const supabase = await createServerSupabase();
 
-  const product = await productsData.getProduct(supabase, id);
+  const [product, folders] = await Promise.all([
+    productsData.getProduct(supabase, id),
+    foldersData.listFolders(supabase),
+  ]);
   if (!product) notFound();
 
   const existingImageUrl = product.image_path ? await signOneProductImage(supabase, product.image_path) : null;
@@ -25,7 +29,7 @@ export default async function EditProductPage(props: PageProps<"/products/[id]/e
         <h1 className="text-xl font-semibold tracking-tight text-foreground">Edit product</h1>
         <p className="mt-1 text-sm text-muted-foreground">Update {product.title}.</p>
       </div>
-      <ProductForm mode="edit" product={product} existingImageUrl={existingImageUrl} />
+      <ProductForm mode="edit" product={product} existingImageUrl={existingImageUrl} folders={folders} />
     </div>
   );
 }

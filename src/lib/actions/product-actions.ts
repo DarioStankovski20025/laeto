@@ -16,9 +16,10 @@ function parseProductForm(formData: FormData) {
   return productSchema.safeParse({
     asin: formData.get("asin"),
     title: formData.get("title"),
-    amazonUrl: formData.get("amazonUrl"),
+    marketplace: formData.get("marketplace"),
     notifyEnabled: formData.get("notifyEnabled") === "true",
     imagePath: formData.get("imagePath") || null,
+    folderId: formData.get("folderId") || null,
   });
 }
 

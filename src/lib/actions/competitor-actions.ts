@@ -13,7 +13,7 @@ function parseCompetitorForm(formData: FormData) {
   return competitorSchema.safeParse({
     asin: formData.get("asin"),
     title: formData.get("title"),
-    amazonUrl: formData.get("amazonUrl"),
+    marketplace: formData.get("marketplace"),
   });
 }
 

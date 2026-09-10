@@ -15,6 +15,9 @@ export function mapPostgrestError<T = never>(error: PostgrestError): ActionResul
     if (constraint.includes("competitors_product_asin_key")) {
       return fail("conflict", "This competitor is already added to this product.");
     }
+    if (constraint.includes("folders_name_unique")) {
+      return fail("conflict", "A folder with that name already exists.");
+    }
     if (constraint.includes("report_runs_one_active_manual_per_product")) {
       return fail("conflict", "A check is already running for this product.");
     }

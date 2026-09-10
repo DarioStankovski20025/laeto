@@ -15,7 +15,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
+import { NativeSelect } from "@/components/ui/native-select";
 import { createCompetitorAction, updateCompetitorAction } from "@/lib/actions/competitor-actions";
+import { AMAZON_MARKETPLACES, marketplaceFromUrl } from "@/lib/utils/amazon";
 import type { ActionResult } from "@/lib/utils/result";
 import type { Competitor } from "@/lib/data/competitors";
 
@@ -105,15 +107,24 @@ export function CompetitorFormDialog({ productId, competitor, disabled, disabled
             />
           </Field>
 
-          <Field label="Amazon URL" htmlFor="c-url" error={fieldErrors?.amazonUrl?.[0]} hint="Full https://www.amazon.* product link.">
-            <Input
-              id="c-url"
-              name="amazonUrl"
-              type="url"
-              required
-              defaultValue={competitor?.amazon_url}
-              invalid={Boolean(fieldErrors?.amazonUrl)}
-            />
+          <Field
+            label="Marketplace"
+            htmlFor="c-marketplace"
+            error={fieldErrors?.marketplace?.[0]}
+            hint="The product link is built from this and the ASIN."
+          >
+            <NativeSelect
+              id="c-marketplace"
+              name="marketplace"
+              defaultValue={marketplaceFromUrl(competitor?.amazon_url)}
+              invalid={Boolean(fieldErrors?.marketplace)}
+            >
+              {AMAZON_MARKETPLACES.map((m) => (
+                <option key={m.domain} value={m.domain}>
+                  {m.label}
+                </option>
+              ))}
+            </NativeSelect>
           </Field>
 
           {result && !result.ok && result.message && !fieldErrors && (

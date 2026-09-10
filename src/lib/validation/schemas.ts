@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AMAZON_MARKETPLACE_DOMAINS } from "@/lib/utils/amazon";
 
 /**
  * Shared client + server validation. Every schema here is imported both by
@@ -13,7 +14,10 @@ export const asinSchema = z
   .toUpperCase()
   .regex(/^[A-Z0-9]{10}$/, { error: "ASIN must be exactly 10 letters or numbers." });
 
-// Accepts any amazon.<tld> host (with or without www.), HTTPS only.
+// Accepts any amazon.<tld> host (with or without www.), HTTPS only. Product
+// and competitor forms no longer ask for a URL — it is derived from the
+// marketplace + ASIN — but this still describes what gets stored in
+// `amazon_url`, and mirrors the database's CHECK constraint.
 export const amazonUrlSchema = z
   .string()
   .trim()
@@ -24,6 +28,10 @@ export const amazonUrlSchema = z
       error: "Enter a valid HTTPS amazon.* product URL.",
     }),
   );
+
+export const marketplaceSchema = z.enum(AMAZON_MARKETPLACE_DOMAINS, {
+  error: "Choose an Amazon marketplace.",
+});
 
 export const emailSchema = z.email({ error: "Enter a valid email address." });
 
@@ -68,9 +76,10 @@ export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export const productSchema = z.object({
   asin: asinSchema,
   title: z.string().trim().min(1, { error: "Product title is required." }).max(300),
-  amazonUrl: amazonUrlSchema,
+  marketplace: marketplaceSchema,
   notifyEnabled: z.boolean(),
   imagePath: z.string().trim().min(1).nullable().optional(),
+  folderId: z.uuid().nullable().optional(),
 });
 export type ProductInput = z.infer<typeof productSchema>;
 
@@ -91,11 +100,22 @@ export const imageFileSchema = z
 export const competitorSchema = z.object({
   asin: asinSchema,
   title: z.string().trim().min(1, { error: "Competitor title is required." }).max(300),
-  amazonUrl: amazonUrlSchema,
+  marketplace: marketplaceSchema,
 });
 export type CompetitorInput = z.infer<typeof competitorSchema>;
 
 export const MAX_COMPETITORS_PER_PRODUCT = 20;
+
+// --- Folders ----------------------------------------------------------------
+
+export const folderSchema = z.object({
+  name: z.string().trim().min(1, { error: "Folder name is required." }).max(100),
+});
+export type FolderInput = z.infer<typeof folderSchema>;
+
+export const setProductFolderSchema = z.object({
+  folderId: z.uuid().nullable(),
+});
 
 // --- Settings ---------------------------------------------------------------
 

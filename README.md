@@ -36,10 +36,11 @@ Built with Next.js 16 (App Router), TypeScript, Tailwind CSS v4, Supabase
 7. [Creating the first LAETO LTD user](#creating-the-first-laeto-ltd-user)
 8. [Running locally](#running-locally)
 9. [Deploying to Vercel](#deploying-to-vercel)
-10. [Report service integration contract](#report-service-integration-contract)
-11. [Mock mode](#mock-mode)
-12. [Verification performed](#verification-performed)
-13. [Known limitations / remaining setup](#known-limitations--remaining-setup)
+10. [Product links and folders](#product-links-and-folders)
+11. [Report service integration contract](#report-service-integration-contract)
+12. [Mock mode](#mock-mode)
+13. [Verification performed](#verification-performed)
+14. [Known limitations / remaining setup](#known-limitations--remaining-setup)
 
 ---
 
@@ -62,6 +63,7 @@ src/
     supabase/              # 4 client constructors — see below
     data/                  # every DB query, written once, used everywhere
     scraper/                # the manual-check push contract lives here
+    utils/amazon.ts        # marketplace list + the ASIN -> product-link derivation
     validation/schemas.ts  # Zod schemas shared by client forms + server actions
     actions/                # Server Actions (product/competitor/settings/auth CRUD, team)
     domain/                 # pure business rules (report-run status ordering)
@@ -140,6 +142,9 @@ order:
 0015_fix_retention_shared_workspace.sql  fix 0010's trigger to match the
                                          0011 column rename; retention is
                                          now global, not per-user
+0016_folders.sql           flat, navigation-only folders + products.folder_id
+                           (ON DELETE SET NULL — deleting a folder never
+                           deletes a product)
 ```
 
 **Using the Supabase CLI (recommended):**
@@ -249,6 +254,47 @@ npm run build       # production build
 4. Deploy. There is no cron to register — the report service pulls
    `GET /api/reports/feed` on its own schedule, entirely outside this app's
    control.
+
+## Product links and folders
+
+### Links are derived, not typed
+
+Product and competitor forms ask for an **ASIN** and a **marketplace**
+(a dropdown of the 22 Amazon storefronts in `src/lib/utils/amazon.ts`). The
+stored `amazon_url` is built from those two by `buildAmazonUrl()` in the data
+layer — never accepted from the client — so an ASIN and its link can never
+disagree:
+
+```
+amazon.de + B09D8DT9H3  ->  https://www.amazon.de/dp/B09D8DT9H3
+```
+
+Edit forms run the derivation backwards with `marketplaceFromUrl()` to
+preselect the right marketplace. A row whose stored host isn't a marketplace
+we know (a legacy link, or one with tracking parameters) falls back to the
+default marketplace in the dropdown and is normalized to the canonical
+`/dp/<ASIN>` form the next time it is saved.
+
+Nothing about this changed the database: `products.amazon_url` and
+`competitors.amazon_url` still hold full URLs, and the feed payload is
+unaffected.
+
+### Folders are navigation only
+
+Folders group products in the dashboard and **nothing else**. They are flat —
+there is no nesting in the schema or the UI — and shared by the whole team like
+the rest of the workspace.
+
+- The root of the dashboard shows folder cards plus the products in no folder;
+  clicking a folder shows just its products.
+- **Global search always searches every product**, so filing something away
+  never hides it from a search.
+- A product is assigned via the folder icon on its card, or the folder dropdown
+  on the Add/Edit product form.
+- **Deleting a folder never deletes products** — `products.folder_id` is
+  `ON DELETE SET NULL`, so its products return to the root.
+- `GET /api/reports/feed` and the manual-check payload say nothing about
+  folders. A product's monitoring behaviour is identical inside or outside one.
 
 ## Report service integration contract
 
@@ -425,7 +471,7 @@ Run before every deploy:
 npm run lint       # clean
 npm run typecheck  # clean
 npm run build      # production build succeeds (Turbopack)
-npm run test       # 63 unit tests, all passing
+npm run test       # 72 unit tests, all passing
 ```
 
 **What the automated tests cover:** ASIN and Amazon-URL validation
@@ -434,7 +480,8 @@ substring), the report-run status transition rules (forward-only, `failed`
 strictly terminal, replays rejected), scraper callback payload validation
 (rejecting `queued`/`sent` from the report service, malformed UUIDs, unknown
 statuses), the manual-check payload builder's shape against the documented
-contract, the dispatch client's full error taxonomy (timeout vs. network vs.
+contract, the marketplace + ASIN link derivation (round-tripping every
+marketplace, and the unknown-host fallback), the dispatch client's full error taxonomy (timeout vs. network vs.
 rejected vs. bad response — including that a fetch `TimeoutError` is
 correctly distinguished from a generic `AbortError`), and the constant-time
 bearer-token comparison used by the feed and callback routes.
@@ -468,4 +515,8 @@ and edit the same shared catalogue after it, with per-record
 - **A product with no `amazon_url` is silently excluded** from both the feed
   and manual-check (with a clear in-app error for the latter) rather than
   causing a partial or malformed payload. Products created before this field
-  existed will need one added via **Edit product** before they're eligible.
+  existed will need one added via **Edit product** before they're eligible —
+  opening Edit and saving is enough, since the link is derived from the
+  marketplace dropdown and the ASIN.
+- **Folders are flat by design.** There is no nesting, in the schema or the
+  UI, and no plan for it — they exist only to make ~30 products easier to scan.

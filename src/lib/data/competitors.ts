@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types/database";
 import type { CompetitorInput } from "@/lib/validation/schemas";
+import { buildAmazonUrl } from "@/lib/utils/amazon";
 import type { Attribution } from "@/lib/data/products";
 
 type DB = SupabaseClient<Database>;
@@ -39,7 +40,8 @@ export async function insertCompetitor(db: DB, productId: string, input: Competi
       product_id: productId,
       asin: input.asin,
       title: input.title,
-      amazon_url: input.amazonUrl,
+      // Derived, never accepted from the client — see lib/utils/amazon.ts.
+      amazon_url: buildAmazonUrl(input.marketplace, input.asin),
     })
     .select("*")
     .single();
@@ -53,7 +55,7 @@ export async function updateCompetitor(db: DB, id: string, input: CompetitorInpu
     .update({
       asin: input.asin,
       title: input.title,
-      amazon_url: input.amazonUrl,
+      amazon_url: buildAmazonUrl(input.marketplace, input.asin),
     })
     .eq("id", id)
     .select("*")

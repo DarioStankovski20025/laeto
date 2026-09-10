@@ -52,6 +52,27 @@ export interface Database {
           },
         ];
       };
+      folders: {
+        Row: {
+          id: string;
+          name: string;
+          created_by: string | null;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["folders"]["Row"]> & { name: string };
+        Update: Partial<Database["public"]["Tables"]["folders"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "folders_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       products: {
         Row: {
           id: string;
@@ -61,6 +82,7 @@ export interface Database {
           image_path: string | null;
           notify_enabled: boolean;
           last_checked_at: string | null;
+          folder_id: string | null;
           created_by: string | null;
           updated_by: string | null;
           created_at: string;
@@ -72,6 +94,13 @@ export interface Database {
         };
         Update: Partial<Database["public"]["Tables"]["products"]["Row"]>;
         Relationships: [
+          {
+            foreignKeyName: "products_folder_id_fkey";
+            columns: ["folder_id"];
+            isOneToOne: false;
+            referencedRelation: "folders";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "products_created_by_fkey";
             columns: ["created_by"];

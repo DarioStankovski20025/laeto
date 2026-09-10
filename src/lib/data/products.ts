@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types/database";
 import type { ProductInput } from "@/lib/validation/schemas";
+import { buildAmazonUrl } from "@/lib/utils/amazon";
 
 type DB = SupabaseClient<Database>;
 export type Product = Database["public"]["Tables"]["products"]["Row"];
@@ -13,9 +14,15 @@ export interface Attribution {
   full_name: string | null;
 }
 
+export interface FolderRef {
+  id: string;
+  name: string;
+}
+
 export interface ProductListItem extends Product {
   competitor_count: number;
   created_by_profile: Attribution | null;
+  folder: FolderRef | null;
 }
 
 export interface ProductWithCompetitors extends Product {
@@ -36,7 +43,7 @@ const ATTRIBUTION_SELECT = "created_by_profile:profiles!products_created_by_fkey
 export async function listProducts(db: DB): Promise<ProductListItem[]> {
   const { data, error } = await db
     .from("products")
-    .select(`*, competitors(count), ${ATTRIBUTION_SELECT}`)
+    .select(`*, competitors(count), ${ATTRIBUTION_SELECT}, folder:folders(id, name)`)
     .order("created_at", { ascending: false });
   if (error) throw error;
 
@@ -44,6 +51,7 @@ export async function listProducts(db: DB): Promise<ProductListItem[]> {
     const { competitors, ...rest } = row as Product & {
       competitors: { count: number }[];
       created_by_profile: Attribution | null;
+      folder: FolderRef | null;
     };
     return { ...rest, competitor_count: competitors?.[0]?.count ?? 0 };
   });
@@ -81,9 +89,12 @@ export async function insertProduct(db: DB, input: ProductInput, id?: string): P
       ...(id ? { id } : {}),
       asin: input.asin,
       title: input.title,
-      amazon_url: input.amazonUrl,
+      // Derived here, never accepted from the client, so an ASIN and its link
+      // can never disagree.
+      amazon_url: buildAmazonUrl(input.marketplace, input.asin),
       notify_enabled: input.notifyEnabled,
       image_path: input.imagePath ?? null,
+      folder_id: input.folderId ?? null,
     })
     .select("*")
     .single();
@@ -97,9 +108,22 @@ export async function updateProduct(db: DB, id: string, input: ProductInput): Pr
     .update({
       asin: input.asin,
       title: input.title,
-      amazon_url: input.amazonUrl,
+      amazon_url: buildAmazonUrl(input.marketplace, input.asin),
       notify_enabled: input.notifyEnabled,
+      folder_id: input.folderId ?? null,
     })
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/** Moves a product into a folder, or out of every folder when folderId is null. */
+export async function setProductFolder(db: DB, id: string, folderId: string | null): Promise<Product> {
+  const { data, error } = await db
+    .from("products")
+    .update({ folder_id: folderId })
     .eq("id", id)
     .select("*")
     .single();

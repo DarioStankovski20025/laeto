@@ -10,6 +10,7 @@ const product: ProductWithCompetitors = {
   image_path: "prod-1/photo.jpg",
   notify_enabled: true,
   last_checked_at: null,
+  folder_id: null,
   created_by: "user-1",
   updated_by: "user-1",
   created_at: "2026-01-01T00:00:00Z",

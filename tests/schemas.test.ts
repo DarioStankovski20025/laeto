@@ -84,10 +84,20 @@ describe("productSchema", () => {
     const result = productSchema.safeParse({
       asin: "B00ABC1234",
       title: "Test Product",
-      amazonUrl: "https://www.amazon.co.uk/dp/B00ABC1234",
+      marketplace: "amazon.co.uk",
       notifyEnabled: true,
     });
     expect(result.success).toBe(true);
+  });
+
+  it("rejects a marketplace that is not a known Amazon domain", () => {
+    const result = productSchema.safeParse({
+      asin: "B00ABC1234",
+      title: "Test Product",
+      marketplace: "amazon.example",
+      notifyEnabled: true,
+    });
+    expect(result.success).toBe(false);
   });
 
   it("rejects a blank title", () => {
@@ -105,15 +115,15 @@ describe("competitorSchema", () => {
   const valid = {
     asin: "B00XYZ9876",
     title: "Competitor Product",
-    amazonUrl: "https://www.amazon.co.uk/dp/B00XYZ9876",
+    marketplace: "amazon.co.uk",
   };
 
   it("accepts a fully valid competitor", () => {
     expect(competitorSchema.safeParse(valid).success).toBe(true);
   });
 
-  it("rejects an invalid amazonUrl", () => {
-    expect(competitorSchema.safeParse({ ...valid, amazonUrl: "https://ebay.com/item/1" }).success).toBe(false);
+  it("rejects an unknown marketplace", () => {
+    expect(competitorSchema.safeParse({ ...valid, marketplace: "ebay.com" }).success).toBe(false);
   });
 
   it("rejects an invalid asin", () => {

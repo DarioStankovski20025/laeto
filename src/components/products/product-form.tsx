@@ -8,18 +8,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
+import { NativeSelect } from "@/components/ui/native-select";
 import { ImageUploader } from "@/components/products/image-uploader";
 import { createProductAction, updateProductAction } from "@/lib/actions/product-actions";
+import { AMAZON_MARKETPLACES, marketplaceFromUrl } from "@/lib/utils/amazon";
 import type { ActionResult } from "@/lib/utils/result";
 import type { Product } from "@/lib/data/products";
+import type { Folder } from "@/lib/data/folders";
 
 interface ProductFormProps {
   mode: "create" | "edit";
   product?: Product;
   existingImageUrl?: string | null;
+  folders: Folder[];
+  /** Preselected folder, e.g. "Add product" clicked from inside a folder. */
+  defaultFolderId?: string | null;
 }
 
-export function ProductForm({ mode, product, existingImageUrl }: ProductFormProps) {
+export function ProductForm({ mode, product, existingImageUrl, folders, defaultFolderId }: ProductFormProps) {
   const router = useRouter();
   const [productId] = useState(() => product?.id ?? crypto.randomUUID());
   const [imagePath, setImagePath] = useState<string | null>(product?.image_path ?? null);
@@ -81,19 +87,38 @@ export function ProductForm({ mode, product, existingImageUrl }: ProductFormProp
       </Field>
 
       <Field
-        label="Amazon URL"
-        htmlFor="amazonUrl"
-        error={fieldErrors?.amazonUrl?.[0]}
-        hint="Full https://www.amazon.* product link."
+        label="Marketplace"
+        htmlFor="marketplace"
+        error={fieldErrors?.marketplace?.[0]}
+        hint="The product link is built from this and the ASIN."
       >
-        <Input
-          id="amazonUrl"
-          name="amazonUrl"
-          type="url"
-          required
-          defaultValue={product?.amazon_url ?? ""}
-          invalid={Boolean(fieldErrors?.amazonUrl)}
-        />
+        <NativeSelect
+          id="marketplace"
+          name="marketplace"
+          defaultValue={marketplaceFromUrl(product?.amazon_url)}
+          invalid={Boolean(fieldErrors?.marketplace)}
+        >
+          {AMAZON_MARKETPLACES.map((m) => (
+            <option key={m.domain} value={m.domain}>
+              {m.label}
+            </option>
+          ))}
+        </NativeSelect>
+      </Field>
+
+      <Field label="Folder" htmlFor="folderId" hint="Optional — only affects how products are grouped in the dashboard.">
+        <NativeSelect
+          id="folderId"
+          name="folderId"
+          defaultValue={product?.folder_id ?? defaultFolderId ?? ""}
+        >
+          <option value="">No folder</option>
+          {folders.map((folder) => (
+            <option key={folder.id} value={folder.id}>
+              {folder.name}
+            </option>
+          ))}
+        </NativeSelect>
       </Field>
 
       <div className="flex items-center justify-between rounded-md border border-border p-3">
