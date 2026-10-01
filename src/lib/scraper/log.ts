@@ -4,6 +4,7 @@ import type { ScraperError } from "./errors";
 
 const SECRET_ENV_KEYS = [
   "MANUAL_CHECK_SECRET",
+  "REPORT_SERVICE_SECRET",
   "SCRAPER_CALLBACK_SECRET",
   "REPORTS_FEED_SECRET",
   "SUPABASE_SERVICE_ROLE_KEY",

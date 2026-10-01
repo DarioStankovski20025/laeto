@@ -37,6 +37,13 @@ export function mapPostgrestError<T = never>(error: PostgrestError): ActionResul
     return fail("validation", "The provided data did not pass validation.");
   }
 
+  if ((error.code === "PGRST204" || error.code === "42703") && constraint.includes("report_emails")) {
+    return fail(
+      "unknown",
+      "Saving more than one report email needs a database update: run supabase/migrations/0017_report_emails.sql in the Supabase SQL Editor.",
+    );
+  }
+
   if (error.code === "P0002") {
     return fail("not_found", "The requested record was not found.");
   }

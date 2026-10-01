@@ -22,7 +22,9 @@ export class ScraperError extends Error {
   toUserMessage(): string {
     switch (this.code) {
       case "not_configured":
-        return "Report service is not configured. Contact your administrator.";
+        return this.detail?.missingEnv?.length
+          ? `Report service is not configured. Missing: ${this.detail.missingEnv.join(", ")}.`
+          : `Report service is not configured. ${this.message}`;
       case "timeout":
         return "The report service did not respond in time. Please try again.";
       case "network":

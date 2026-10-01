@@ -16,6 +16,8 @@ beforeEach(() => {
   delete process.env.SCRAPER_MOCK_MODE;
   delete process.env.MANUAL_CHECK_URL;
   delete process.env.MANUAL_CHECK_SECRET;
+  delete process.env.REPORT_SERVICE_URL;
+  delete process.env.REPORT_SERVICE_SECRET;
   vi.stubEnv("NODE_ENV", "test");
 });
 
@@ -44,6 +46,19 @@ describe("dispatchScrapeJob", () => {
     const result = await dispatchScrapeJob(item, RUN_ID);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("not_configured");
+  });
+
+  it("accepts REPORT_SERVICE_URL/SECRET as aliases", async () => {
+    process.env.REPORT_SERVICE_URL = "https://reports.example.com/manual-check";
+    process.env.REPORT_SERVICE_SECRET = "alias-secret";
+    const fetchSpy = vi.fn().mockResolvedValue(new Response("OK", { status: 200 }));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const result = await dispatchScrapeJob(item, RUN_ID);
+    expect(result.ok).toBe(true);
+    const [url, init] = fetchSpy.mock.calls[0];
+    expect(url).toBe("https://reports.example.com/manual-check");
+    expect((init.headers as Record<string, string>)["Authorization"]).toBe("Bearer alias-secret");
   });
 
   it("returns a rejected error when the report service responds with a non-2xx status", async () => {

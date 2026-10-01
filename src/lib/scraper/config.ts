@@ -17,14 +17,17 @@ export interface ScraperConfig {
  * "Check now" push — the full-catalog case is pull-only now (the report
  * service calls GET /api/reports/feed itself), so there is nothing to push
  * to for that case and no config for it here.
+ *
+ * REPORT_SERVICE_URL/SECRET are accepted as aliases (the names used in the
+ * Vercel project).
  */
 export function getScraperConfig(): ScraperConfig {
   const missing: string[] = [];
-  const endpoint = process.env.MANUAL_CHECK_URL;
-  const secret = process.env.MANUAL_CHECK_SECRET;
+  const endpoint = (process.env.MANUAL_CHECK_URL || process.env.REPORT_SERVICE_URL)?.trim();
+  const secret = (process.env.MANUAL_CHECK_SECRET || process.env.REPORT_SERVICE_SECRET)?.trim();
 
-  if (!endpoint) missing.push("MANUAL_CHECK_URL");
-  if (!secret) missing.push("MANUAL_CHECK_SECRET");
+  if (!endpoint) missing.push("MANUAL_CHECK_URL (or REPORT_SERVICE_URL)");
+  if (!secret) missing.push("MANUAL_CHECK_SECRET (or REPORT_SERVICE_SECRET)");
 
   if (missing.length > 0) {
     throw new ScraperError("not_configured", `Manual check is not configured. Missing: ${missing.join(", ")}`, {
