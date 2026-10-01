@@ -14,7 +14,24 @@ export const dynamic = "force-dynamic";
  * that would help an attacker probe the endpoint.
  */
 export async function POST(request: NextRequest) {
-  if (!bearerMatches(request.headers.get("authorization"), serverEnv.scraperCallbackSecret())) {
+  // See the note in reports/feed: a missing secret is an operator problem and
+  // must name itself rather than surfacing as an indistinguishable 500.
+  let callbackSecret: string;
+  try {
+    callbackSecret = serverEnv.scraperCallbackSecret();
+  } catch {
+    console.error(JSON.stringify({ at: "reports.callback", error: "SCRAPER_CALLBACK_SECRET is not set" }));
+    return NextResponse.json(
+      {
+        error: "Callback is not configured.",
+        missing: "SCRAPER_CALLBACK_SECRET",
+        hint: "Set it in the deployment's environment variables (Production scope) and redeploy.",
+      },
+      { status: 503 },
+    );
+  }
+
+  if (!bearerMatches(request.headers.get("authorization"), callbackSecret)) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 

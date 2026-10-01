@@ -68,18 +68,19 @@ export async function getProduct(db: DB, id: string): Promise<ProductWithCompeti
 }
 
 /**
- * Products eligible for the feed / a manual check: notify_enabled, has an
- * Amazon URL of its own (required for the link-only payload), and has at
- * least one competitor.
+ * Products eligible for the feed: notify_enabled and has an Amazon URL of its
+ * own (required for the link-only payload). Products without competitors are
+ * included with an empty competitors array.
  */
-export async function listNotifiableProductsWithCompetitors(db: DB): Promise<ProductWithCompetitors[]> {
+export async function listNotifiableProducts(db: DB): Promise<ProductWithCompetitors[]> {
   const { data, error } = await db
     .from("products")
     .select("*, competitors(*)")
     .eq("notify_enabled", true)
-    .not("amazon_url", "is", null);
+    .not("amazon_url", "is", null)
+    .order("created_at", { ascending: true });
   if (error) throw error;
-  return ((data ?? []) as ProductWithCompetitors[]).filter((p) => p.competitors.length > 0);
+  return (data ?? []) as ProductWithCompetitors[];
 }
 
 export async function insertProduct(db: DB, input: ProductInput, id?: string): Promise<Product> {

@@ -21,11 +21,43 @@ export const dynamic = "force-dynamic";
  * it wants to, without the body shape changing.
  */
 export async function GET(request: NextRequest) {
-  if (!bearerMatches(request.headers.get("authorization"), serverEnv.reportsFeedSecret())) {
+  // Missing configuration is an operator problem, not a caller problem, and it
+  // must say so: an unhandled throw here surfaces as a bare 500 that looks
+  // identical to a real bug. Naming the absent variable is safe — it leaks no
+  // secret, only which one was never set.
+  let feedSecret: string;
+  try {
+    feedSecret = serverEnv.reportsFeedSecret();
+  } catch {
+    console.error(JSON.stringify({ at: "reports.feed", error: "REPORTS_FEED_SECRET is not set" }));
+    return NextResponse.json(
+      {
+        error: "Report feed is not configured.",
+        missing: "REPORTS_FEED_SECRET",
+        hint: "Set it in the deployment's environment variables (Production scope) and redeploy.",
+      },
+      { status: 503 },
+    );
+  }
+
+  if (!bearerMatches(request.headers.get("authorization"), feedSecret)) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
-  const admin = createAdminSupabase();
+  let admin;
+  try {
+    admin = createAdminSupabase();
+  } catch {
+    console.error(JSON.stringify({ at: "reports.feed", error: "Supabase admin client is not configured" }));
+    return NextResponse.json(
+      {
+        error: "Report feed is not configured.",
+        missing: "SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_URL",
+        hint: "Set it in the deployment's environment variables (Production scope) and redeploy.",
+      },
+      { status: 503 },
+    );
+  }
 
   const settings = await reportSettingsData.getReportSettings(admin);
   const run = await reportRunsData.insertFeedRun(admin);
@@ -35,7 +67,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json([], { headers: { "X-Report-Run-Id": run.id } });
   }
 
-  const products = await productsData.listNotifiableProductsWithCompetitors(admin);
+  const products = await productsData.listNotifiableProducts(admin);
   const email = settings.report_email ?? "";
 
   if (products.length === 0) {
