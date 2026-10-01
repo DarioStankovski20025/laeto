@@ -16,9 +16,24 @@ export async function getReportSettings(db: DB): Promise<ReportSettings | null> 
   return data;
 }
 
+/**
+ * Report recipients. Falls back to the legacy single report_email when the
+ * report_emails column has not been migrated in yet (0017).
+ */
+export function getReportEmails(settings: ReportSettings | null): string[] {
+  if (!settings) return [];
+  if (settings.report_emails?.length) return settings.report_emails;
+  return settings.report_email ? [settings.report_email] : [];
+}
+
+/** The `email` field sent to the report service: every recipient, comma-separated. */
+export function formatReportEmails(emails: string[]): string {
+  return emails.join(",");
+}
+
 export interface UpdateReportSettingsInput {
   companyName?: string | null;
-  reportEmail: string;
+  reportEmails: string[];
   dailyReportsEnabled: boolean;
   timezone: string;
 }
@@ -28,7 +43,8 @@ export async function updateReportSettings(db: DB, input: UpdateReportSettingsIn
     .from("report_settings")
     .update({
       company_name: input.companyName ?? null,
-      report_email: input.reportEmail,
+      report_emails: input.reportEmails,
+      report_email: input.reportEmails[0] ?? null,
       daily_reports_enabled: input.dailyReportsEnabled,
       timezone: input.timezone,
     })

@@ -15,7 +15,7 @@ export async function updateSettingsAction(_prev: unknown, formData: FormData): 
 
   const parsed = settingsSchema.safeParse({
     companyName: formData.get("companyName") || null,
-    reportEmail: formData.get("reportEmail"),
+    reportEmails: formData.getAll("reportEmails").map(String),
     dailyReportsEnabled: formData.get("dailyReportsEnabled") === "true",
     timezone: formData.get("timezone"),
   });

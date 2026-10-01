@@ -36,7 +36,7 @@ describe("dispatchScrapeJob", () => {
 
     expect(result.ok).toBe(true);
     expect(result.mocked).toBe(true);
-    if (result.ok) expect(result.ack.jobId).toMatch(/^mock_/);
+    if (result.ok) expect(result.ack?.jobId).toMatch(/^mock_/);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -62,27 +62,27 @@ describe("dispatchScrapeJob", () => {
     }
   });
 
-  it("returns a bad_response error when the report service returns invalid JSON", async () => {
+  it("treats a 2xx with a non-JSON body as delivered, with no ack", async () => {
     process.env.MANUAL_CHECK_URL = "https://reports.example.com/manual-check";
     process.env.MANUAL_CHECK_SECRET = "secret";
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("not json", { status: 200 })));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("OK", { status: 200 })));
 
     const result = await dispatchScrapeJob(item, RUN_ID);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("bad_response");
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.ack).toBeNull();
   });
 
-  it("returns a bad_response error when the ack fails schema validation", async () => {
+  it("treats a 2xx with a JSON body that is not an ack as delivered, with no ack", async () => {
     process.env.MANUAL_CHECK_URL = "https://reports.example.com/manual-check";
     process.env.MANUAL_CHECK_SECRET = "secret";
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(new Response(JSON.stringify({ accepted: true }), { status: 200 })),
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: "ok" }), { status: 200 })),
     );
 
     const result = await dispatchScrapeJob(item, RUN_ID);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("bad_response");
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.ack).toBeNull();
   });
 
   it("classifies a fetch timeout (DOMException 'TimeoutError') as a timeout, not a generic network error", async () => {
@@ -118,7 +118,7 @@ describe("dispatchScrapeJob", () => {
 
     const result = await dispatchScrapeJob(item, RUN_ID);
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.ack.jobId).toBe("job_abc");
+    if (result.ok) expect(result.ack?.jobId).toBe("job_abc");
 
     const [, init] = fetchSpy.mock.calls[0];
     const headers = init.headers as Record<string, string>;

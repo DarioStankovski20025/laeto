@@ -1,20 +1,19 @@
 import "server-only";
+import { after } from "next/server";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types/database";
 import * as productsData from "@/lib/data/products";
 import * as reportRunsData from "@/lib/data/report-runs";
 import * as reportSettingsData from "@/lib/data/report-settings";
-import { buildManualCheckPayload, dispatchScrapeJob } from "@/lib/scraper";
+import { buildManualCheckPayload, dispatchScrapeJob, getScraperConfig, isMockMode, ScraperError } from "@/lib/scraper";
 import { fail, ok, type ActionResult } from "@/lib/utils/result";
-import type { ReportRun } from "@/lib/data/report-runs";
 
 type DB = SupabaseClient<Database>;
 
 export interface ManualCheckResult {
   runId: string;
-  status: ReportRun["status"];
+  emails: string[];
   mocked: boolean;
-  message?: string;
 }
 
 /**
@@ -24,8 +23,12 @@ export interface ManualCheckResult {
  * — the product catalog is a shared team workspace, so there is no
  * per-user ownership check. Takes both a user-scoped client (RLS-enforced
  * insert, stamping requested_by from auth.uid()) and the service-role
- * client (status update after dispatch — users have no UPDATE policy on
- * report_runs).
+ * client (status updates — users have no UPDATE policy on report_runs).
+ *
+ * Does not wait for the report service: the run is recorded, the POST is
+ * scheduled with after() so it runs once the response has been sent, and
+ * the outcome (delivered / failed) is written back to the run. Must be
+ * called within a request scope (route handler or server action).
  */
 export async function performManualCheck(
   userClient: DB,
@@ -40,9 +43,22 @@ export async function performManualCheck(
   }
 
   const settings = await reportSettingsData.getReportSettings(userClient);
-  const payload = buildManualCheckPayload(product, settings?.report_email ?? user.email ?? "");
+  const configured = reportSettingsData.getReportEmails(settings);
+  const emails = configured.length > 0 ? configured : user.email ? [user.email] : [];
+  const payload = buildManualCheckPayload(product, reportSettingsData.formatReportEmails(emails));
   if (!payload) {
     return fail("validation", "Add an Amazon URL to this product before checking its price.");
+  }
+
+  // Configuration problems are known up front, so report them now rather
+  // than returning success for a request that can never be sent.
+  const mocked = isMockMode();
+  if (!mocked) {
+    try {
+      getScraperConfig();
+    } catch (e) {
+      return fail("scraper", e instanceof ScraperError ? e.toUserMessage() : "Manual check is not configured.");
+    }
   }
 
   const inserted = await reportRunsData.insertManualRun(userClient, productId);
@@ -50,22 +66,25 @@ export async function performManualCheck(
     return fail("conflict", "A check is already running for this product.");
   }
 
-  const dispatch = await dispatchScrapeJob(payload, inserted.id);
-
-  if (!dispatch.ok) {
-    await reportRunsData.markRunFailed(adminClient, inserted.id, dispatch.error.toUserMessage());
-    return fail("scraper", dispatch.error.toUserMessage());
-  }
-
-  await reportRunsData.markRunDispatched(adminClient, inserted.id, dispatch.ack, {
+  await reportRunsData.markRunSent(adminClient, inserted.id, {
     productsCount: 1,
     competitorsCount: product.competitors.length,
   });
 
-  return ok({
-    runId: inserted.id,
-    status: "sent",
-    mocked: dispatch.mocked,
-    message: dispatch.ack.message ?? undefined,
+  after(async () => {
+    const dispatch = await dispatchScrapeJob(payload, inserted.id);
+    try {
+      if (dispatch.ok) {
+        await reportRunsData.markRunDelivered(adminClient, inserted.id, dispatch.ack);
+      } else {
+        await reportRunsData.markRunFailed(adminClient, inserted.id, dispatch.error.toUserMessage());
+      }
+    } catch (error) {
+      console.error(
+        JSON.stringify({ at: "manual-check", runId: inserted.id, error: error instanceof Error ? error.message : String(error) }),
+      );
+    }
   });
+
+  return ok({ runId: inserted.id, emails, mocked });
 }

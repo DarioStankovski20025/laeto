@@ -33,6 +33,7 @@ export interface Database {
           id: boolean;
           company_name: string | null;
           report_email: string | null;
+          report_emails: string[];
           daily_reports_enabled: boolean;
           preferred_report_time: string;
           timezone: string;

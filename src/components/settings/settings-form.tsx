@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
@@ -11,6 +11,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { updateSettingsAction } from "@/lib/actions/settings-actions";
 import { listTimezones } from "@/lib/utils/timezones";
+import { MAX_REPORT_EMAILS } from "@/lib/validation/schemas";
 import type { ActionResult } from "@/lib/utils/result";
 import type { ReportSettings } from "@/lib/data/report-settings";
 
@@ -21,6 +22,30 @@ export function SettingsForm({ settings }: { settings: ReportSettings }) {
   const [dailyReportsEnabled, setDailyReportsEnabled] = useState(settings.daily_reports_enabled);
   const fieldErrors = !state.ok ? state.fieldErrors : undefined;
   const timezones = listTimezones();
+  const [emails, setEmails] = useState(() => {
+    const initial = settings.report_emails?.length
+      ? settings.report_emails
+      : settings.report_email
+        ? [settings.report_email]
+        : [""];
+    return initial.map((value, id) => ({ id, value }));
+  });
+
+  function addEmail() {
+    setEmails((prev) =>
+      prev.length < MAX_REPORT_EMAILS
+        ? [...prev, { id: Math.max(-1, ...prev.map((e) => e.id)) + 1, value: "" }]
+        : prev,
+    );
+  }
+
+  function removeEmail(id: number) {
+    setEmails((prev) => prev.filter((e) => e.id !== id));
+  }
+
+  function updateEmail(id: number, value: string) {
+    setEmails((prev) => prev.map((e) => (e.id === id ? { ...e, value } : e)));
+  }
 
   useEffect(() => {
     if (state.ok) toast.success("Settings saved.");
@@ -39,15 +64,45 @@ export function SettingsForm({ settings }: { settings: ReportSettings }) {
             <Input id="companyName" name="companyName" defaultValue={settings.company_name ?? ""} />
           </Field>
 
-          <Field label="Report recipient email" htmlFor="reportEmail" error={fieldErrors?.reportEmail?.[0]}>
-            <Input
-              id="reportEmail"
-              name="reportEmail"
-              type="email"
-              required
-              defaultValue={settings.report_email ?? ""}
-              invalid={Boolean(fieldErrors?.reportEmail)}
-            />
+          <Field
+            label="Report recipient emails"
+            htmlFor="reportEmails-0"
+            hint={`Reports are sent to every address listed (up to ${MAX_REPORT_EMAILS}).`}
+            error={fieldErrors?.reportEmails?.[0]}
+          >
+            <div className="flex flex-col gap-2">
+              {emails.map((email, index) => (
+                <div key={email.id} className="flex items-center gap-2">
+                  <Input
+                    id={`reportEmails-${index}`}
+                    name="reportEmails"
+                    type="email"
+                    required={index === 0}
+                    placeholder="name@example.com"
+                    aria-label={`Report email ${index + 1}`}
+                    value={email.value}
+                    onChange={(e) => updateEmail(email.id, e.target.value)}
+                    invalid={Boolean(fieldErrors?.reportEmails)}
+                  />
+                  {emails.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeEmail(email.id)}
+                      aria-label={`Remove report email ${index + 1}`}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              {emails.length < MAX_REPORT_EMAILS && (
+                <Button type="button" variant="outline" size="sm" className="self-start" onClick={addEmail}>
+                  <Plus className="h-4 w-4" /> Add email
+                </Button>
+              )}
+            </div>
           </Field>
 
           <div className="flex items-center justify-between rounded-md border border-border p-3">

@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Loader2, PlayCircle, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, PlayCircle, CheckCircle2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { RunStatusBadge } from "@/components/reports/run-status-badge";
-import { useRunPolling } from "@/hooks/use-run-polling";
 
 interface CheckNowModalProps {
   productId: string;
@@ -17,12 +15,8 @@ interface CheckNowModalProps {
 export function CheckNowModal({ productId, productTitle, competitorCount }: CheckNowModalProps) {
   const [open, setOpen] = useState(false);
   const [isDispatching, setIsDispatching] = useState(false);
-  const [runId, setRunId] = useState<string | null>(null);
+  const [sentTo, setSentTo] = useState<string[] | null>(null);
   const [dispatchError, setDispatchError] = useState<string | null>(null);
-  const [ackMessage, setAckMessage] = useState<string | null>(null);
-
-  const { runs } = useRunPolling(runId ? [runId] : []);
-  const currentRun = runs.find((r) => r.id === runId);
 
   async function handleStart() {
     setIsDispatching(true);
@@ -34,9 +28,8 @@ export function CheckNowModal({ productId, productTitle, competitorCount }: Chec
         setDispatchError(body.error ?? "Could not start the check.");
         return;
       }
-      setRunId(body.data.runId);
-      setAckMessage(body.data.message ?? null);
-      toast.success("Price check started.");
+      setSentTo(body.data.emails ?? []);
+      toast.success("Price check sent. The report will arrive by email.");
     } catch {
       setDispatchError("Could not reach the server. Please try again.");
     } finally {
@@ -47,11 +40,8 @@ export function CheckNowModal({ productId, productTitle, competitorCount }: Chec
   function handleOpenChange(next: boolean) {
     setOpen(next);
     if (!next) {
-      // Closing the modal does not cancel the server-side job — it keeps
-      // running and the dashboard will reflect its result on completion.
-      setRunId(null);
+      setSentTo(null);
       setDispatchError(null);
-      setAckMessage(null);
     }
   }
 
@@ -76,7 +66,7 @@ export function CheckNowModal({ productId, productTitle, competitorCount }: Chec
           <div className="rounded-md border border-status-processing bg-status-processing-bg px-3 py-2 text-sm text-status-processing">
             Add at least one competitor before checking this product&apos;s price.
           </div>
-        ) : !runId ? (
+        ) : !sentTo ? (
           <>
             {dispatchError && (
               <div className="rounded-md border border-status-failed bg-status-failed-bg px-3 py-2 text-sm text-status-failed">
@@ -95,32 +85,24 @@ export function CheckNowModal({ productId, productTitle, competitorCount }: Chec
           </>
         ) : (
           <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between rounded-md border border-border bg-surface-muted px-3 py-2">
-              <span className="text-sm text-foreground">Status</span>
-              <RunStatusBadge status={currentRun?.status ?? "sent"} />
+            <div className="flex items-start gap-3 rounded-md border border-status-completed bg-status-completed-bg px-3 py-3 text-sm text-status-completed">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="flex flex-col gap-1">
+                <p className="font-medium">Everything is OK — the check has been sent.</p>
+                <p>
+                  You will receive the report by email
+                  {sentTo.length > 0 && (
+                    <>
+                      {" "}at <span className="font-medium break-all">{sentTo.join(", ")}</span>
+                    </>
+                  )}
+                  .
+                </p>
+              </div>
             </div>
 
-            {ackMessage && <p className="text-xs text-muted-foreground">{ackMessage}</p>}
-
-            {currentRun?.status === "completed" && (
-              <div className="flex items-center gap-2 text-sm text-status-completed">
-                <CheckCircle2 className="h-4 w-4" /> Check completed.
-              </div>
-            )}
-            {currentRun?.status === "failed" && (
-              <div className="flex items-center gap-2 text-sm text-status-failed">
-                <XCircle className="h-4 w-4" /> {currentRun.error_message ?? "The check failed."}
-              </div>
-            )}
-
-            <p className="text-xs text-muted-foreground">
-              You can close this window — the check keeps running and the dashboard will update automatically.
-            </p>
-
             <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)}>
-                Close
-              </Button>
+              <Button onClick={() => setOpen(false)}>Close</Button>
             </DialogFooter>
           </div>
         )}

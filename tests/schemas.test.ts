@@ -7,6 +7,7 @@ import {
   competitorSchema,
   scraperCallbackSchema,
   scraperAckSchema,
+  reportEmailsSchema,
 } from "@/lib/validation/schemas";
 
 describe("asinSchema", () => {
@@ -186,6 +187,28 @@ describe("scraperCallbackSchema", () => {
       status: "weird_status",
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("reportEmailsSchema", () => {
+  it("drops blanks, lowercases and de-duplicates", () => {
+    const result = reportEmailsSchema.safeParse([" A@x.com ", "", "a@x.com", "b@y.com"]);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toEqual(["a@x.com", "b@y.com"]);
+  });
+
+  it("requires at least one email", () => {
+    expect(reportEmailsSchema.safeParse(["", " "]).success).toBe(false);
+  });
+
+  it("allows up to 5 emails and rejects a 6th", () => {
+    const five = ["a@x.com", "b@x.com", "c@x.com", "d@x.com", "e@x.com"];
+    expect(reportEmailsSchema.safeParse(five).success).toBe(true);
+    expect(reportEmailsSchema.safeParse([...five, "f@x.com"]).success).toBe(false);
+  });
+
+  it("rejects an invalid address", () => {
+    expect(reportEmailsSchema.safeParse(["a@x.com", "not-an-email"]).success).toBe(false);
   });
 });
 

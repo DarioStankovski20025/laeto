@@ -119,9 +119,21 @@ export const setProductFolderSchema = z.object({
 
 // --- Settings ---------------------------------------------------------------
 
+export const MAX_REPORT_EMAILS = 5;
+
+export const reportEmailsSchema = z
+  .array(z.string().trim())
+  .transform((emails) => [...new Set(emails.filter(Boolean).map((e) => e.toLowerCase()))])
+  .pipe(
+    z
+      .array(emailSchema)
+      .min(1, { error: "Add at least one report email." })
+      .max(MAX_REPORT_EMAILS, { error: `You can add up to ${MAX_REPORT_EMAILS} report emails.` }),
+  );
+
 export const settingsSchema = z.object({
   companyName: z.string().trim().max(200).nullable().optional(),
-  reportEmail: emailSchema,
+  reportEmails: reportEmailsSchema,
   dailyReportsEnabled: z.boolean(),
   timezone: z.string().trim().min(1, { error: "Select a timezone." }),
 });

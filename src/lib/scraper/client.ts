@@ -7,7 +7,7 @@ import type { ScraperFeedItem } from "./types";
 import { logScraperEvent } from "./log";
 
 export type DispatchResult =
-  | { ok: true; ack: ScraperAck; mocked: boolean; durationMs: number }
+  | { ok: true; ack: ScraperAck | null; mocked: boolean; durationMs: number }
   | { ok: false; error: ScraperError; mocked: boolean; durationMs: number };
 
 /**
@@ -19,7 +19,8 @@ export type DispatchResult =
  *
  * `runId` travels as the `X-Report-Run-Id` request header — the JSON body
  * stays link-only. Not auto-retried: POST is not idempotent on the
- * receiving side.
+ * receiving side. Any 2xx counts as delivered; a `{ accepted, jobId }` body
+ * is picked up when present but not required.
  */
 export async function dispatchScrapeJob(item: ScraperFeedItem, runId: string): Promise<DispatchResult> {
   const started = performance.now();
@@ -66,22 +67,7 @@ export async function dispatchScrapeJob(item: ScraperFeedItem, runId: string): P
       });
     }
 
-    let json: unknown;
-    try {
-      json = JSON.parse(raw);
-    } catch {
-      throw new ScraperError("bad_response", "Report service response was not valid JSON", {
-        bodySnippet: raw.slice(0, 500),
-      });
-    }
-
-    const parsed = scraperAckSchema.safeParse(json);
-    if (!parsed.success) {
-      throw new ScraperError("bad_response", "Report service acknowledgement failed schema validation", {
-        bodySnippet: raw.slice(0, 500),
-      });
-    }
-
+    const ack = parseAck(raw);
     const durationMs = Math.round(performance.now() - started);
     logScraperEvent({
       phase: "dispatch",
@@ -89,14 +75,24 @@ export async function dispatchScrapeJob(item: ScraperFeedItem, runId: string): P
       mocked: false,
       item,
       durationMs,
-      jobId: parsed.data.jobId,
+      jobId: ack?.jobId,
     });
-    return { ok: true, ack: parsed.data, mocked: false, durationMs };
+    return { ok: true, ack, mocked: false, durationMs };
   } catch (e) {
     const durationMs = Math.round(performance.now() - started);
     const error = toScraperError(e);
     logScraperEvent({ phase: "dispatch", outcome: "error", mocked: false, item, durationMs, error });
     return { ok: false, error, mocked: false, durationMs };
+  }
+}
+
+/** A 2xx is success on its own; the structured ack is optional. */
+function parseAck(raw: string): ScraperAck | null {
+  try {
+    const parsed = scraperAckSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
   }
 }
 

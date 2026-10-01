@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
   }
 
   const products = await productsData.listNotifiableProducts(admin);
-  const email = settings.report_email ?? "";
+  const email = reportSettingsData.formatReportEmails(reportSettingsData.getReportEmails(settings));
 
   if (products.length === 0) {
     await reportRunsData.markRunSkipped(admin, run.id, "no_eligible_products");

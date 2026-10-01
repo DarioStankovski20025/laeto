@@ -115,14 +115,13 @@ export async function getMostRecentRun(db: DB): Promise<ReportRun | null> {
 }
 
 /**
- * Records a successful scraper dispatch: sets the row's counts, then moves
- * status queued -> sent via the guarded RPC. Must use the SERVICE-ROLE
- * client — users have no UPDATE policy on report_runs.
+ * Marks a manual run as handed off (queued -> sent) and records its counts,
+ * before the request to the report service is actually made. Must use the
+ * SERVICE-ROLE client — users have no UPDATE policy on report_runs.
  */
-export async function markRunDispatched(
+export async function markRunSent(
   admin: DB,
   runId: string,
-  ack: ScraperAck,
   totals: { productsCount: number; competitorsCount: number },
 ): Promise<void> {
   const { error: countsError } = await admin
@@ -133,9 +132,25 @@ export async function markRunDispatched(
 
   const { error } = await admin.rpc("apply_report_run_callback", {
     p_run_id: runId,
-    p_external_job_id: ack.jobId,
+    p_external_job_id: null,
     p_status: "sent",
-    p_sent_at: ack.queuedAt ?? new Date().toISOString(),
+    p_sent_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+}
+
+/**
+ * Marks a manual run completed once the report service has accepted it
+ * (any 2xx). The report itself arrives by email, so there is nothing left
+ * to wait for — leaving it "sent" would block another check on the same
+ * product until the stale-run sweep fails it.
+ */
+export async function markRunDelivered(admin: DB, runId: string, ack: ScraperAck | null): Promise<void> {
+  const { error } = await admin.rpc("apply_report_run_callback", {
+    p_run_id: runId,
+    p_external_job_id: ack?.jobId ?? null,
+    p_status: "completed",
+    p_result_data: { delivered: true, ...(ack?.message ? { message: ack.message } : {}) },
   });
   if (error) throw error;
 }
